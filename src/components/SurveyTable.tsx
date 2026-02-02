@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IdCardModal } from "./IdCardModal";
+import { HealthcardModal } from "./HealthcardModal";
+import { EditSurveyModal } from "./EditSurveyModal";
 import type { Survey } from "@shared/schema";
 import {
   CIVIL_STATUS_OPTIONS,
@@ -23,7 +25,7 @@ import {
   WORK_STATUS_OPTIONS,
   YOUTH_CLASSIFICATION_OPTIONS
 } from "@shared/schema";
-import { Search, SlidersHorizontal, CreditCard, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Trash2 } from "lucide-react";
+import { Search, SlidersHorizontal, CreditCard, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Trash2, Edit3, Heart } from "lucide-react";
 import { useDeleteSurvey } from "@/hooks/use-surveys";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -78,6 +80,9 @@ export function SurveyTable({ data }: SurveyTableProps) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
   const [isIdModalOpen, setIsIdModalOpen] = useState(false);
+  const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
+  const [editSurvey, setEditSurvey] = useState<Survey | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const deleteSurvey = useDeleteSurvey();
   const { toast } = useToast();
@@ -131,6 +136,30 @@ export function SurveyTable({ data }: SurveyTableProps) {
                 }}
               >
                 <CreditCard className="h-4 w-4 text-indigo-600" />
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => {
+                  setSelectedSurvey(survey);
+                  setIsHealthModalOpen(true);
+                }}
+              >
+                <Heart className="h-4 w-4 text-red-600" />
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => {
+                  setEditSurvey(survey);
+                  setIsEditModalOpen(true);
+                }}
+              >
+                <Edit3 className="h-4 w-4 text-slate-700" />
               </Button>
 
               <AlertDialog>
@@ -203,6 +232,7 @@ export function SurveyTable({ data }: SurveyTableProps) {
       toast({ title: "Error", description: "Failed to delete record.", variant: "destructive" });
     }
   };
+
 
   return (
     <div className="space-y-4">
@@ -371,6 +401,19 @@ export function SurveyTable({ data }: SurveyTableProps) {
         survey={selectedSurvey}
         open={isIdModalOpen}
         onOpenChange={setIsIdModalOpen}
+      />
+      <HealthcardModal
+        survey={selectedSurvey}
+        open={isHealthModalOpen}
+        onOpenChange={setIsHealthModalOpen}
+      />
+      <EditSurveyModal
+        survey={editSurvey}
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        onUpdated={() => {
+          setIsEditModalOpen(false);
+        }}
       />
     </div>
   );

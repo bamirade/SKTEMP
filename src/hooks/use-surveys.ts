@@ -118,3 +118,40 @@ export function useDeleteSurvey() {
     },
   });
 }
+
+export function useUpdateSurvey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<CreateSurveyInput> }) => {
+      const url = buildUrl(api.surveys.update.path, { id });
+      try {
+        const res = await fetch(url, {
+          method: (api as any).surveys.update.method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          if (res.status === 400) {
+            const error = (api as any).surveys.update.responses[400].parse(await res.json());
+            throw new Error(error.message);
+          }
+          if (res.status === 404) throw new Error("Survey not found");
+          throw new Error("Failed to update survey");
+        }
+        return (api as any).surveys.update.responses[200].parse(await res.json());
+      } catch (err) {
+        // Fallback: update localStorage
+        const local = readLocalSurveys();
+        const updated = local.map((s: any) => (s.id === id ? { ...s, ...(data as any) } : s));
+        writeLocalSurveys(updated as any);
+        const found = updated.find((s: any) => s.id === id) ?? null;
+        return found;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.surveys.list.path] });
+    },
+  });
+}

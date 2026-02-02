@@ -31,6 +31,15 @@ export const api = {
         400: z.object({ message: z.string() }),
       },
     },
+    update: {
+      path: "/api/surveys/:id",
+      method: "PUT",
+      responses: {
+        200: insertSurveySchema,
+        400: z.object({ message: z.string() }),
+        404: z.any(),
+      },
+    },
     delete: {
       path: "/api/surveys/:id",
       method: "DELETE",
