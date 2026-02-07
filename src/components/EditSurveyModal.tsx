@@ -23,6 +23,7 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
   const { toast } = useToast();
 
   const form = useForm<Partial<Survey>>({
+    mode: "onTouched",
     defaultValues: {
       name: "",
       age: undefined,
@@ -93,7 +94,21 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
                 <FormItem>
                   <FormLabel>Full Name</FormLabel>
                   <FormControl>
-                    <Input {...field} className="h-10 rounded-md" />
+                    <Input
+                      {...field}
+                      required
+                      minLength={2}
+                      maxLength={100}
+                      pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                      title="Name should be 2-100 characters; letters, spaces, hyphens and apostrophes only."
+                      onBlur={(e: any) => {
+                        const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                        if (v !== e.target.value) e.target.value = v;
+                        field.onChange(v);
+                        field.onBlur?.();
+                      }}
+                      className="h-10 rounded-md"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -108,7 +123,44 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
                   <FormItem>
                     <FormLabel>Age</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className="h-10 rounded-md" />
+                      <Input
+                        type="number"
+                        {...field}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        min={14}
+                        max={30}
+                        step={1}
+                        required
+                        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                          if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
+                        }}
+                        onPaste={(e: React.ClipboardEvent<HTMLInputElement>) => {
+                          const paste = e.clipboardData.getData('text');
+                          if (!/^\d+$/.test(paste)) e.preventDefault();
+                        }}
+                        onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                        onBlur={(e: any) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            field.onChange(undefined);
+                            field.onBlur?.();
+                            return;
+                          }
+                          let n = Number(val);
+                          if (Number.isNaN(n)) {
+                            field.onChange(undefined);
+                            field.onBlur?.();
+                            return;
+                          }
+                          if (n < 14) n = 14;
+                          if (n > 30) n = 30;
+                          if (String(n) !== val) e.target.value = String(n);
+                          field.onChange(n);
+                          field.onBlur?.();
+                        }}
+                        className="h-10 rounded-md"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -195,7 +247,7 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
               <Button type="submit" className="bg-primary" disabled={updateSurvey.isPending}>
                 {updateSurvey.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : "Save Changes"}
               </Button>

@@ -13,7 +13,7 @@ export default function Home() {
       <div className="relative z-10 max-w-5xl mx-auto px-4 py-8">
         <header className="flex justify-between items-center mb-10">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 text-primary-foreground rounded-xl flex items-center justify-center shadow-lg shadow-primary/25 overflow-hidden">
+            <div className="w-12 h-12 text-primary-foreground rounded-full flex items-center justify-center shadow-lg shadow-primary/25 overflow-hidden">
               <img src="/favicon.png" alt="SK logo" className="w-full h-full object-contain" />
             </div>
             <div>

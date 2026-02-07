@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useState, useRef } from "react";
+import html2canvas from "html2canvas";
 import type { Survey } from "@shared/schema";
 import { Printer, Upload, User } from "lucide-react";
 
@@ -28,6 +29,23 @@ export function IdCardModal({ survey, open, onOpenChange }: IdCardModalProps) {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleSavePNG = async () => {
+    const el = document.getElementById("idcard-print-area-wrapper");
+    if (!el) return;
+    try {
+      const canvas = await html2canvas(el as HTMLElement, { backgroundColor: null });
+      const data = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = data;
+      link.download = `${survey.name.replace(/\s+/g, "_")}-idcard.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error("Failed to save PNG", err);
+    }
   };
 
   if (!survey) return null;
@@ -75,11 +93,12 @@ export function IdCardModal({ survey, open, onOpenChange }: IdCardModalProps) {
           </div>
 
           <div className="flex flex-col items-center justify-center">
-            {/* ID Card Preview Area */}
-            <div
-              id="id-card-print-area"
-              className="w-[350px] h-[220px] bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl shadow-xl overflow-hidden relative text-white"
-            >
+            {/* ID Card Preview Area (front/back wrapper) */}
+            <div id="idcard-print-area-wrapper" className="flex flex-col items-center gap-6">
+              <div
+                id="id-card-print-area"
+                className="w-[350px] h-[220px] bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl shadow-xl overflow-hidden relative text-white"
+              >
               {/* Decorative circles */}
               <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
               <div className="absolute bottom-[-30px] left-[-10px] w-32 h-32 bg-orange-500/20 rounded-full blur-xl"></div>
@@ -133,11 +152,32 @@ export function IdCardModal({ survey, open, onOpenChange }: IdCardModalProps) {
               <div className="absolute bottom-0 w-full h-6 bg-orange-500 flex items-center justify-center">
                  <span className="text-[10px] font-bold text-white tracking-[0.2em] uppercase">Youth Empowerment</span>
               </div>
-            </div>
+              </div>
 
-            <Button onClick={handlePrint} className="mt-6 w-full gap-2" size="lg">
-              <Printer className="w-4 h-4" /> Print Card
-            </Button>
+              {/* Back side: simple notice/terms + signature area */}
+              <div className="w-[350px] h-[220px] bg-white rounded-xl shadow-inner p-4 text-slate-800">
+                <div className="text-sm font-semibold mb-2">Notice / Terms</div>
+                <div className="text-xs text-slate-600 mb-4 leading-relaxed">
+                  This Youth Identity Card is provided for community identification purposes. Misuse or
+                  tampering of this card may be subject to local regulations. Keep this card safe.
+                </div>
+
+                <div className="mt-4">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">Signature</div>
+                  <div className="mt-3 h-10 border-b border-slate-300"></div>
+                  <div className="text-[10px] text-slate-400 mt-2">Date: ____________________</div>
+                </div>
+              </div>
+
+              <div className="w-full flex gap-2 mt-2">
+                <Button onClick={handleSavePNG} className="w-1/2 gap-2" size="lg">
+                  Save as PNG
+                </Button>
+                <Button onClick={handlePrint} className="w-1/2 gap-2" size="lg">
+                  <Printer className="w-4 h-4" /> Print Card
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </DialogContent>
