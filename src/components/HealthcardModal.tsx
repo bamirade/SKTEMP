@@ -98,13 +98,14 @@ export function HealthcardModal({ survey, open, onOpenChange }: HealthcardModalP
               <div
                 id="healthcard-print-area"
                 className="w-[350px] h-[220px] bg-gradient-to-br from-red-600 to-rose-700 rounded-xl shadow-xl overflow-hidden relative text-white"
+                style={{ background: 'linear-gradient(135deg, #dc2626 0%, #be123c 100%)' }}
               >
-              <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-              <div className="absolute bottom-[-30px] left-[-10px] w-32 h-32 bg-red-500/20 rounded-full blur-xl"></div>
+              <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-white/10 rounded-full blur-xl" style={{ borderRadius: '9999px', filter: 'blur(40px)', backgroundColor: 'rgba(255, 255, 255, 0.1)' }}></div>
+              <div className="absolute bottom-[-30px] left-[-10px] w-32 h-32 bg-red-500/20 rounded-full blur-xl" style={{ borderRadius: '9999px', filter: 'blur(40px)', backgroundColor: 'rgba(239, 68, 68, 0.2)' }}></div>
 
               <div className="flex items-center justify-between px-4 py-3 bg-black/10 backdrop-blur-sm border-b border-white/10">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center" style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Heart className="w-3 h-3 text-red-200" />
                   </div>
                   <span className="text-xs font-bold tracking-wider uppercase">Youth Healthcard</span>
@@ -124,7 +125,7 @@ export function HealthcardModal({ survey, open, onOpenChange }: HealthcardModalP
                 <div className="flex-1 space-y-1">
                   <div>
                     <div className="text-[8px] text-red-200 uppercase tracking-wider">Name</div>
-                    <div className="text-sm font-bold truncate leading-tight">{survey.name}</div>
+                    <div className="text-sm font-bold leading-snug break-words pr-1">{survey.name}</div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -133,7 +134,7 @@ export function HealthcardModal({ survey, open, onOpenChange }: HealthcardModalP
                     </div>
                     <div>
                       <div className="text-[8px] text-red-200 uppercase tracking-wider">Status</div>
-                      <div className="text-xs font-semibold truncate">{survey.civilStatus}</div>
+                      <div className="text-xs font-semibold leading-snug break-words pr-1">{survey.civilStatus}</div>
                     </div>
                   </div>
                   <div>
@@ -149,28 +150,32 @@ export function HealthcardModal({ survey, open, onOpenChange }: HealthcardModalP
               </div>
 
               {/* Back side: simple notice/terms + signature area */}
-              <div className="w-[350px] h-[220px] bg-white rounded-xl shadow-inner p-4 text-slate-800">
-                <div className="text-sm font-semibold mb-2">Notice / Terms</div>
-                <div className="text-xs text-slate-600 mb-4 leading-relaxed">
-                  By using this Youth Healthcard you agree to the local policies and acknowledge that this
-                  card is for identification and health reference only. Keep this card secure.
-                </div>
+              <div className="w-[350px] h-[220px] bg-gradient-to-br from-red-600 to-rose-700 rounded-xl shadow-xl overflow-hidden relative text-white p-4" style={{ background: 'linear-gradient(135deg, #dc2626 0%, #be123c 100%)' }}>
+                <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-white/10 rounded-full blur-xl" style={{ borderRadius: '9999px', filter: 'blur(40px)', backgroundColor: 'rgba(255, 255, 255, 0.1)' }}></div>
+                <div className="absolute bottom-[-30px] left-[-10px] w-32 h-32 bg-red-500/20 rounded-full blur-xl" style={{ borderRadius: '9999px', filter: 'blur(40px)', backgroundColor: 'rgba(239, 68, 68, 0.2)' }}></div>
+                <div className="relative z-10">
+                  <div className="text-sm font-semibold mb-2">Notice / Terms</div>
+                  <div className="text-xs text-red-100 mb-4 leading-relaxed">
+                    By using this Youth Healthcard you agree to the local policies and acknowledge that this
+                    card is for identification and health reference only. Keep this card secure.
+                  </div>
 
-                <div className="mt-4">
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">Signature</div>
-                  <div className="mt-3 h-10 border-b border-slate-300"></div>
-                  <div className="text-[10px] text-slate-400 mt-2">Date: ____________________</div>
+                  <div className="mt-4">
+                    <div className="text-[10px] text-red-200 uppercase tracking-wider">Signature</div>
+                    <div className="mt-3 h-10 border-b border-white/30"></div>
+                    <div className="text-[10px] text-red-100 mt-2">Date: ____________________</div>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="w-full flex gap-2 mt-2">
-                <Button onClick={handleSavePNG} className="w-1/2 gap-2" size="lg">
-                  Save as PNG
-                </Button>
-                <Button onClick={handlePrint} className="w-1/2 gap-2" size="lg">
-                  <Printer className="w-4 h-4" /> Print Card
-                </Button>
-              </div>
+            <div className="w-full flex gap-2 mt-2">
+              <Button onClick={handleSavePNG} className="w-1/2 gap-2" size="lg">
+                Save as PNG
+              </Button>
+              <Button onClick={handlePrint} className="w-1/2 gap-2" size="lg">
+                <Printer className="w-4 h-4" /> Print Card
+              </Button>
             </div>
           </div>
         </div>
