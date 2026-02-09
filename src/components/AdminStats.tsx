@@ -1,6 +1,6 @@
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Survey } from "@shared/schema";
@@ -12,6 +12,13 @@ interface AdminStatsProps {
 const COLORS = ['#4f46e5', '#ec4899', '#f97316', '#10b981', '#6366f1', '#8b5cf6'];
 
 export function AdminStats({ surveys }: AdminStatsProps) {
+    // Civil Status distribution
+    const statusData = Object.entries(
+      surveys.reduce((acc, curr) => {
+        acc[curr.civilStatus] = (acc[curr.civilStatus] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    ).map(([name, value]) => ({ name, value }));
   // Process data for charts
   const ageGroupData = Object.entries(
     surveys.reduce((acc, curr) => {
@@ -34,6 +41,24 @@ export function AdminStats({ surveys }: AdminStatsProps) {
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ name, value }));
 
+  const sexData = Object.entries(
+    surveys.reduce((acc, curr) => {
+      acc[curr.sex] = (acc[curr.sex] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>)
+  ).map(([name, value]) => ({ name, value }));
+
+  const kkAssemblyData = [
+    {
+      name: 'Attended',
+      value: surveys.filter(s => s.attendedKkAssembly === true).length
+    },
+    {
+      name: 'Did Not Attend',
+      value: surveys.filter(s => s.attendedKkAssembly === false).length
+    }
+  ];
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
       <Card className="shadow-md hover:shadow-lg transition-shadow">
@@ -54,6 +79,33 @@ export function AdminStats({ surveys }: AdminStatsProps) {
               >
                 {ageGroupData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" height={36} iconType="circle" />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-md hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <CardTitle className="text-lg font-bold">Civil Status</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[250px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={statusData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {statusData.map((_, index) => (
+                  <Cell key={`cell-status-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip />
@@ -92,6 +144,50 @@ export function AdminStats({ surveys }: AdminStatsProps) {
               <YAxis allowDecimals={false} />
               <Tooltip cursor={{ fill: '#f1f5f9' }} />
               <Bar dataKey="value" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={40} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-md hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <CardTitle className="text-lg font-bold">Sex Distribution</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[250px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={sexData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {sexData.map((_, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" height={36} iconType="circle" />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-md hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <CardTitle className="text-lg font-bold">KK Assembly Attendance</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[250px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={kkAssemblyData} margin={{ top: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{fontSize: 10}} />
+              <YAxis allowDecimals={false} />
+              <Tooltip cursor={{ fill: '#f1f5f9' }} />
+              <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={60} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

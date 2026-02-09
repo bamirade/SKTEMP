@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertSurveySchema, CIVIL_STATUS_OPTIONS, EDUCATION_OPTIONS, YOUTH_CLASSIFICATION_OPTIONS, WORK_STATUS_OPTIONS, SEX_OPTIONS } from "@shared/schema";
+import { insertSurveySchema, CIVIL_STATUS_OPTIONS, EDUCATION_OPTIONS, YOUTH_CLASSIFICATION_OPTIONS, WORK_STATUS_OPTIONS, SEX_OPTIONS, KK_ASSEMBLY_FREQUENCY_OPTIONS, KK_ASSEMBLY_REASON_NO_OPTIONS } from "@shared/schema";
 import type { CreateSurveyInput } from "@shared/routes";
 import { useCreateSurvey } from "@/hooks/use-surveys";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -30,6 +30,8 @@ export function SurveyForm() {
       registeredNationalVoter: false,
       votedLastElection: false,
       attendedKkAssembly: false,
+      kkAssemblyFrequency: undefined,
+      kkAssemblyReasonNo: undefined,
       civilStatus: "Single",
       sex: "Male",
       educationalBackground: "High School Level",
@@ -444,6 +446,61 @@ export function SurveyForm() {
                   )}
                 />
               </div>
+
+              {/* Conditional fields for KK Assembly */}
+              {form.watch("attendedKkAssembly") && (
+                <div className="mt-6 pt-6 border-t border-slate-100">
+                  <FormField
+                    control={form.control}
+                    name="kkAssemblyFrequency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-base">How many times did you attend?</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-11 rounded-lg">
+                              <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {KK_ASSEMBLY_FREQUENCY_OPTIONS.map(opt => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {form.watch("attendedKkAssembly") === false && (
+                <div className="mt-6 pt-6 border-t border-slate-100">
+                  <FormField
+                    control={form.control}
+                    name="kkAssemblyReasonNo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-base">Why didn't you attend?</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-11 rounded-lg">
+                              <SelectValue placeholder="Select reason" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {KK_ASSEMBLY_REASON_NO_OPTIONS.map(opt => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
             </div>
 
             <Button
