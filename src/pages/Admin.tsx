@@ -1,12 +1,78 @@
+import { useState } from "react";
 import { useSurveys } from "@/hooks/use-surveys";
 import { SurveyTable } from "@/components/SurveyTable";
 import { AdminStats } from "@/components/AdminStats";
 import { Link } from "wouter";
-import { Loader2, LayoutDashboard, ArrowLeft, Users } from "lucide-react";
+import { Loader2, LayoutDashboard, ArrowLeft, Users, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function Admin() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+
   const { data: surveys, isLoading, isError } = useSurveys();
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simple temporary password check
+    if (password === "admin123") {
+      setIsAuthenticated(true);
+      setErrorMsg("");
+    } else {
+      setErrorMsg("Invalid password. Please try again.");
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <Card className="w-full max-w-md shadow-lg border-slate-200">
+          <CardHeader className="space-y-1 flex flex-col items-center">
+            <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-4">
+              <Lock className="w-6 h-6" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
+            <CardDescription>
+              Enter your credentials to access the dashboard
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full"
+                  autoFocus
+                />
+                {errorMsg && (
+                  <p className="text-sm text-destructive font-medium">{errorMsg}</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
+                  Login to Dashboard
+                </Button>
+                <Link href="/">
+                  <Button variant="ghost" type="button" className="w-full text-slate-500 hover:text-slate-700">
+                    Back to Survey
+                  </Button>
+                </Link>
+              </div>
+              <p className="text-xs text-center text-slate-400 mt-4">
+                Temporary access. Supabase integration coming soon.
+              </p>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -42,7 +108,7 @@ export default function Admin() {
           </div>
           <h1 className="font-bold text-xl hidden md:block">Admin Dashboard</h1>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-sm font-medium text-slate-600">
             <Users className="w-4 h-4" />

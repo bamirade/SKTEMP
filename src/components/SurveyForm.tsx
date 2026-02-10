@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertSurveySchema, CIVIL_STATUS_OPTIONS, EDUCATION_OPTIONS, YOUTH_CLASSIFICATION_OPTIONS, WORK_STATUS_OPTIONS, SEX_OPTIONS } from "@shared/schema";
+import { insertSurveySchema, CIVIL_STATUS_OPTIONS, EDUCATION_OPTIONS, YOUTH_CLASSIFICATION_OPTIONS, WORK_STATUS_OPTIONS, SEX_OPTIONS, KK_ASSEMBLY_FREQUENCY_OPTIONS, KK_ASSEMBLY_REASON_NO_OPTIONS } from "@shared/schema";
 import type { CreateSurveyInput } from "@shared/routes";
 import { useCreateSurvey } from "@/hooks/use-surveys";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -21,6 +21,7 @@ export function SurveyForm() {
 
   const form = useForm<CreateSurveyInput>({
     resolver: zodResolver(insertSurveySchema),
+    mode: "onTouched",
     defaultValues: {
       name: "",
       age: undefined,
@@ -29,6 +30,8 @@ export function SurveyForm() {
       registeredNationalVoter: false,
       votedLastElection: false,
       attendedKkAssembly: false,
+      kkAssemblyFrequency: undefined,
+      kkAssemblyReasonNo: undefined,
       civilStatus: "Single",
       sex: "Male",
       educationalBackground: "High School Level",
@@ -132,7 +135,22 @@ export function SurveyForm() {
                     <FormItem className="col-span-1 md:col-span-2">
                       <FormLabel>Full Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="First Name, Last Name" {...field} className="h-11 rounded-lg" />
+                        <Input
+                          placeholder="First Name, Last Name"
+                          {...field}
+                          required
+                          minLength={2}
+                          maxLength={100}
+                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                          title="Name should be 2-100 characters; letters, spaces, hyphens and apostrophes only."
+                          onBlur={(e: any) => {
+                            const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                            if (v !== e.target.value) e.target.value = v;
+                            field.onChange(v);
+                            field.onBlur?.();
+                          }}
+                          className="h-11 rounded-lg"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -150,7 +168,39 @@ export function SurveyForm() {
                           type="number"
                           placeholder="Ex. 18"
                           {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          min={14}
+                          max={30}
+                          step={1}
+                          required
+                          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                            if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
+                          }}
+                          onPaste={(e: React.ClipboardEvent<HTMLInputElement>) => {
+                            const paste = e.clipboardData.getData('text');
+                            if (!/^\d+$/.test(paste)) e.preventDefault();
+                          }}
+                          onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                          onBlur={(e: any) => {
+                            const val = e.target.value;
+                            if (val === "") {
+                              field.onChange(undefined);
+                              field.onBlur?.();
+                              return;
+                            }
+                            let n = Number(val);
+                            if (Number.isNaN(n)) {
+                              field.onChange(undefined);
+                              field.onBlur?.();
+                              return;
+                            }
+                            if (n < 14) n = 14;
+                            if (n > 30) n = 30;
+                            if (String(n) !== val) e.target.value = String(n);
+                            field.onChange(n);
+                            field.onBlur?.();
+                          }}
                           className="h-11 rounded-lg"
                         />
                       </FormControl>
@@ -396,6 +446,61 @@ export function SurveyForm() {
                   )}
                 />
               </div>
+
+              {/* Conditional fields for KK Assembly */}
+              {form.watch("attendedKkAssembly") && (
+                <div className="mt-6 pt-6 border-t border-slate-100">
+                  <FormField
+                    control={form.control}
+                    name="kkAssemblyFrequency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-base">How many times did you attend?</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-11 rounded-lg">
+                              <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {KK_ASSEMBLY_FREQUENCY_OPTIONS.map(opt => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {form.watch("attendedKkAssembly") === false && (
+                <div className="mt-6 pt-6 border-t border-slate-100">
+                  <FormField
+                    control={form.control}
+                    name="kkAssemblyReasonNo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-base">Why didn't you attend?</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-11 rounded-lg">
+                              <SelectValue placeholder="Select reason" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {KK_ASSEMBLY_REASON_NO_OPTIONS.map(opt => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
             </div>
 
             <Button

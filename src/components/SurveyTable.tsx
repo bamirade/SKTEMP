@@ -23,7 +23,9 @@ import {
   CIVIL_STATUS_OPTIONS,
   SEX_OPTIONS,
   WORK_STATUS_OPTIONS,
-  YOUTH_CLASSIFICATION_OPTIONS
+  YOUTH_CLASSIFICATION_OPTIONS,
+  KK_ASSEMBLY_FREQUENCY_OPTIONS,
+  KK_ASSEMBLY_REASON_NO_OPTIONS
 } from "@shared/schema";
 import { Search, SlidersHorizontal, CreditCard, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Trash2, Edit3, Heart } from "lucide-react";
 import { useDeleteSurvey } from "@/hooks/use-surveys";
@@ -45,16 +47,35 @@ function FilterDropdown({ column }: { column: Column<any, unknown> }) {
       case "youthAgeGroup": return ["Child Youth", "Core Youth", "Young Adult"];
       case "workStatus": return WORK_STATUS_OPTIONS;
       case "youthClassification": return YOUTH_CLASSIFICATION_OPTIONS;
+      case "attendedKkAssembly": return ["Yes", "No"];
+      case "kkAssemblyFrequency": return KK_ASSEMBLY_FREQUENCY_OPTIONS;
+      case "kkAssemblyReasonNo": return KK_ASSEMBLY_REASON_NO_OPTIONS;
       default: return [];
     }
   }, [id]);
 
   if (options.length === 0) return null;
 
+  const getDisplayValue = () => {
+    if (columnFilterValue === undefined) return "all";
+    if (id === "attendedKkAssembly") {
+      return columnFilterValue === true ? "Yes" : columnFilterValue === false ? "No" : "all";
+    }
+    return (columnFilterValue as string) ?? "all";
+  };
+
   return (
     <Select
-      value={(columnFilterValue as string) ?? "all"}
-      onValueChange={(value) => column.setFilterValue(value === "all" ? undefined : value)}
+      value={getDisplayValue()}
+      onValueChange={(value) => {
+        if (value === "all") {
+          column.setFilterValue(undefined);
+        } else if (id === "attendedKkAssembly") {
+          column.setFilterValue(value === "Yes");
+        } else {
+          column.setFilterValue(value);
+        }
+      }}
     >
       <SelectTrigger className="h-7 w-full text-[10px] px-2 bg-white/50 border-slate-200">
         <SelectValue placeholder="All" />
@@ -77,6 +98,17 @@ interface SurveyTableProps {
 
 export function SurveyTable({ data }: SurveyTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  // Define sortable columns and labels
+  const sortableColumns = [
+    { id: 'name', label: 'Name' },
+    { id: 'age', label: 'Age' },
+    { id: 'youthAgeGroup', label: 'Age Group' },
+    { id: 'sex', label: 'Sex' },
+    { id: 'civilStatus', label: 'Status' },
+    { id: 'workStatus', label: 'Work' },
+    { id: 'youthClassification', label: 'Classification' },
+  ];
+  const currentSort = sorting[0] || { id: '', desc: false };
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
   const [isIdModalOpen, setIsIdModalOpen] = useState(false);
@@ -98,26 +130,92 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "age",
         header: "Age",
+        filterFn: (row, id, value) => {
+          if (!value) return true;
+          return row.getValue(id) === value;
+        },
       },
       {
         accessorKey: "youthAgeGroup",
         header: "Age Group",
+        filterFn: (row, id, value) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
       },
       {
         accessorKey: "sex",
         header: "Sex",
+        filterFn: (row, id, value) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
       },
       {
         accessorKey: "civilStatus",
         header: "Status",
+        filterFn: (row, id, value) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
       },
       {
         accessorKey: "workStatus",
         header: "Work",
+        filterFn: (row, id, value) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
       },
       {
         accessorKey: "youthClassification",
         header: "Classification",
+        filterFn: (row, id, value) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
+      },
+      {
+        accessorKey: "attendedKkAssembly",
+        header: "KK Assembly",
+        filterFn: (row, id, value) => {
+          if (value === undefined) return true;
+          return row.getValue(id) === value;
+        },
+        cell: ({ row }) => {
+          const attended = row.getValue("attendedKkAssembly");
+          return (
+            <div className={`text-sm font-medium ${attended ? "text-green-600" : "text-red-600"}`}>
+              {attended ? "Yes" : "No"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "kkAssemblyFrequency",
+        header: "Frequency",
+        filterFn: (row, id, value) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
+        cell: ({ row }) => {
+          const attended = row.original.attendedKkAssembly;
+          const frequency = row.getValue("kkAssemblyFrequency");
+          return attended ? <div className="text-sm">{String(frequency)}</div> : <div className="text-sm text-slate-400">-</div>;
+        },
+      },
+      {
+        accessorKey: "kkAssemblyReasonNo",
+        header: "Reason (if No)",
+        filterFn: (row, id, value) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
+        cell: ({ row }) => {
+          const attended = row.original.attendedKkAssembly;
+          const reason = row.getValue("kkAssemblyReasonNo");
+          return !attended ? <div className="text-sm">{String(reason)}</div> : <div className="text-sm text-slate-400">-</div>;
+        },
       },
       {
         id: "actions",
@@ -203,22 +301,114 @@ export function SurveyTable({ data }: SurveyTableProps) {
   const filteredData = table.getFilteredRowModel().rows.map(row => row.original);
 
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filteredData);
+    const filterInfo = columnFilters.length > 0
+      ? columnFilters.map(f => `${f.id}: ${Array.isArray(f.value) ? f.value.join(', ') : f.value}`).join(' | ')
+      : 'No filters applied';
+
+    // Compute overview statistics from filteredData
+    const sexCounts = filteredData.reduce((acc: Record<string, number>, s) => {
+      acc[s.sex] = (acc[s.sex] || 0) + 1;
+      return acc;
+    }, {});
+
+    const sexInfo = Object.entries(sexCounts).map(([k, v]) => `${k}: ${v}`).join(' | ') || 'None';
+
+    const attendedCount = filteredData.filter(s => s.attendedKkAssembly === true).length;
+    const notAttendedCount = filteredData.filter(s => s.attendedKkAssembly === false).length;
+    const kkInfo = `Attended: ${attendedCount} | Did Not Attend: ${notAttendedCount}`;
+
+    const freqCounts = filteredData.reduce((acc: Record<string, number>, s) => {
+      const f = s.kkAssemblyFrequency || '-';
+      acc[f] = (acc[f] || 0) + 1;
+      return acc;
+    }, {});
+    const freqInfo = Object.entries(freqCounts).map(([k, v]) => `${k}: ${v}`).join(' | ');
+
+    const rows = filteredData.map(s => [
+      s.name,
+      s.age,
+      s.sex,
+      s.civilStatus,
+      s.workStatus,
+      s.youthClassification,
+      s.attendedKkAssembly ? 'Yes' : 'No',
+      s.attendedKkAssembly ? (s.kkAssemblyFrequency || '-') : '-',
+      !s.attendedKkAssembly ? (s.kkAssemblyReasonNo || '-') : '-'
+    ]);
+
+    // Build sheet with filter + stats header, then data starting below
+    const wsWithFilter = XLSX.utils.aoa_to_sheet([
+      ['Export Filters:', filterInfo],
+      ['Total Records:', filteredData.length],
+      ['Export Date:', new Date().toLocaleString()],
+      [],
+      ['Sex Distribution:', sexInfo],
+      ['KK Assembly:', kkInfo],
+      ['KK Frequency Breakdown:', freqInfo],
+      [],
+      ['Name', 'Age', 'Sex', 'Status', 'Work', 'Classification', 'KK Assembly', 'Frequency', 'Reason (if No)']
+    ]);
+
+    XLSX.utils.sheet_add_aoa(wsWithFilter, rows, { origin: 'A10' });
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Surveys");
+    XLSX.utils.book_append_sheet(wb, wsWithFilter, "Surveys");
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const dataBlob = new Blob([excelBuffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'});
     saveAs(dataBlob, 'youth_surveys_filtered.xlsx');
   };
 
   const handleExportPDF = () => {
+    const filterInfo = columnFilters.length > 0
+      ? columnFilters.map(f => `${f.id}: ${Array.isArray(f.value) ? f.value.join(', ') : f.value}`).join(' | ')
+      : 'No filters applied';
+
+    // Compute overview statistics
+    const sexCounts = filteredData.reduce((acc: Record<string, number>, s) => {
+      acc[s.sex] = (acc[s.sex] || 0) + 1;
+      return acc;
+    }, {});
+    const sexInfo = Object.entries(sexCounts).map(([k, v]) => `${k}: ${v}`).join(' | ') || 'None';
+
+    const attendedCount = filteredData.filter(s => s.attendedKkAssembly === true).length;
+    const notAttendedCount = filteredData.filter(s => s.attendedKkAssembly === false).length;
+    const kkInfo = `Attended: ${attendedCount} | Did Not Attend: ${notAttendedCount}`;
+
+    const freqCounts = filteredData.reduce((acc: Record<string, number>, s) => {
+      const f = s.kkAssemblyFrequency || '-';
+      acc[f] = (acc[f] || 0) + 1;
+      return acc;
+    }, {});
+    const freqInfo = Object.entries(freqCounts).map(([k, v]) => `${k}: ${v}`).join(' | ');
+
     const doc = new jsPDF();
-    doc.text("Youth Survey Report (Filtered)", 14, 15);
+
+    // Add title and filter/stat information
+    doc.setFontSize(14);
+    const title = columnFilters.length > 0 ? "Youth Survey Report (Filtered)" : "Youth Survey Report";
+    doc.text(title, 14, 15);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Filters Applied: ${filterInfo}`, 14, 25);
+    doc.text(`Total Records: ${filteredData.length} | Export Date: ${new Date().toLocaleString()}`, 14, 32);
+    doc.text(`Sex Distribution: ${sexInfo}`, 14, 39);
+    doc.text(`KK Assembly: ${kkInfo}`, 14, 46);
+    doc.text(`KK Frequency Breakdown: ${freqInfo}`, 14, 53);
+    doc.setTextColor(0);
 
     autoTable(doc, {
-      head: [['Name', 'Age', 'Sex', 'Classification', 'Work Status']],
-      body: filteredData.map(s => [s.name, s.age, s.sex, s.youthClassification, s.workStatus]),
-      startY: 20,
+      head: [['Name', 'Age', 'Sex', 'Classification', 'Work Status', 'KK Assembly', 'Frequency/Reason']],
+      body: filteredData.map(s => [
+        s.name,
+        s.age,
+        s.sex,
+        s.youthClassification,
+        s.workStatus,
+        s.attendedKkAssembly ? 'Yes' : 'No',
+        s.attendedKkAssembly ? (s.kkAssemblyFrequency || '-') : (s.kkAssemblyReasonNo || '-')
+      ]),
+      startY: 62,
     });
 
     doc.save('youth_surveys_filtered.pdf');
@@ -238,7 +428,7 @@ export function SurveyTable({ data }: SurveyTableProps) {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-4 rounded-xl border shadow-sm">
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex gap-2 w-full sm:w-auto items-center">
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
             <Input
@@ -273,6 +463,26 @@ export function SurveyTable({ data }: SurveyTableProps) {
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Sort Dropdown */}
+          <Select
+            value={currentSort.id ? `${currentSort.id}:${currentSort.desc ? 'desc' : 'asc'}` : 'none'}
+            onValueChange={val => {
+              if (val === 'none') return setSorting([]);
+              const [id, dir] = val.split(":");
+              setSorting([{ id, desc: dir === 'desc' }]);
+            }}
+          >
+            <SelectTrigger className="h-10 w-44 text-[14px] ml-2">
+              <SelectValue placeholder="Sort by..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No Sort</SelectItem>
+              {sortableColumns.map(col => [
+                <SelectItem key={col.id+':asc'} value={`${col.id}:asc`}>{col.label} (Ascending)</SelectItem>,
+                <SelectItem key={col.id+':desc'} value={`${col.id}:desc`}>{col.label} (Descending)</SelectItem>
+              ])}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex gap-2 w-full sm:w-auto justify-end">
@@ -312,11 +522,17 @@ export function SurveyTable({ data }: SurveyTableProps) {
                           ) : header.column.id === "age" ? (
                             <Input
                               placeholder="Age..."
-                              type="number"
-                              value={(header.column.getFilterValue() as string) ?? ""}
-                              onChange={(event) =>
-                                header.column.setFilterValue(event.target.value)
-                              }
+                              type="text"
+                              inputMode="numeric"
+                              value={(header.column.getFilterValue() ?? "") as string}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                if (value === "") {
+                                  header.column.setFilterValue(undefined);
+                                } else if (/^\d+$/.test(value)) {
+                                  header.column.setFilterValue(Number(value));
+                                }
+                              }}
                               className="h-7 text-[10px] px-2 bg-white/50"
                             />
                           ) : (
