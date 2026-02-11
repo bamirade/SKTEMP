@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertSurveySchema, CIVIL_STATUS_OPTIONS, EDUCATION_OPTIONS, YOUTH_CLASSIFICATION_OPTIONS, WORK_STATUS_OPTIONS, SEX_OPTIONS, KK_ASSEMBLY_FREQUENCY_OPTIONS, KK_ASSEMBLY_REASON_NO_OPTIONS } from "@shared/schema";
+import { insertSurveySchema, CIVIL_STATUS_OPTIONS, EDUCATION_OPTIONS, YOUTH_CLASSIFICATION_OPTIONS, WORK_STATUS_OPTIONS, SEX_OPTIONS, KK_ASSEMBLY_FREQUENCY_OPTIONS, KK_ASSEMBLY_REASON_NO_OPTIONS, LOCATION_OPTIONS, SPECIAL_NEEDS_TYPE_OPTIONS } from "@shared/schema";
 import type { CreateSurveyInput } from "@shared/routes";
 import { useCreateSurvey } from "@/hooks/use-surveys";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -18,13 +18,22 @@ export function SurveyForm() {
   const { toast } = useToast();
   const createSurvey = useCreateSurvey();
   const [isSuccess, setIsSuccess] = useState(false);
+  const [birthdateError, setBirthdateError] = useState<string | null>(null);
 
   const form = useForm<CreateSurveyInput>({
     resolver: zodResolver(insertSurveySchema),
     mode: "onTouched",
     defaultValues: {
-      name: "",
+      firstName: "",
+      lastName: "",
+      middleName: "",
+      suffix: "",
+      birthdate: "",
+      email: "",
+      contactNumber: "",
       age: undefined,
+      location: "Purok 1",
+      otherLocation: "",
       youthAgeGroup: "Child Youth",
       registeredSkVoter: false,
       registeredNationalVoter: false,
@@ -36,9 +45,43 @@ export function SurveyForm() {
       sex: "Male",
       educationalBackground: "High School Level",
       youthClassification: "In School Youth",
-      workStatus: "Unemployed",
+      specialNeedsType: "",
+      workStatus: "Student",
     },
   });
+
+  // Auto-calculate age from birthdate
+  const birthdate = form.watch("birthdate");
+  useEffect(() => {
+    if (birthdate) {
+      const today = new Date();
+      const birthDate = new Date(birthdate);
+      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        calculatedAge--;
+      }
+
+      // Validate age is within range
+      if (calculatedAge >= 14 && calculatedAge <= 30) {
+        form.setValue("age", calculatedAge);
+        setBirthdateError(null);
+      } else if (calculatedAge < 14) {
+        form.setValue("age", undefined);
+        setBirthdateError("You must be at least 14 years old to participate.");
+      } else {
+        form.setValue("age", undefined);
+        setBirthdateError("This survey is for youth aged 14-30 years old.");
+      }
+    } else {
+      form.setValue("age", undefined);
+      setBirthdateError(null);
+    }
+  }, [birthdate, form]);
 
   // Auto-calculate Youth Age Group
   const age = form.watch("age");
@@ -115,6 +158,9 @@ export function SurveyForm() {
         <CardDescription>
           Please complete this form accurately. This information is used for youth development planning.
         </CardDescription>
+        <p className="text-xs text-slate-500 pt-2">
+          Fields marked with <span className="text-red-500">*</span> are required
+        </p>
       </CardHeader>
       <CardContent className="pt-8">
         <Form {...form}>
@@ -128,21 +174,23 @@ export function SurveyForm() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Name Section */}
                 <FormField
                   control={form.control}
-                  name="name"
+                  name="firstName"
                   render={({ field }) => (
-                    <FormItem className="col-span-1 md:col-span-2">
-                      <FormLabel>Full Name</FormLabel>
+                    <FormItem>
+                      <FormLabel>First Name <span className="text-red-500">*</span></FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="First Name, Last Name"
+                          placeholder="Enter your first name"
                           {...field}
+                          autoFocus
                           required
                           minLength={2}
-                          maxLength={100}
+                          maxLength={50}
                           pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
-                          title="Name should be 2-100 characters; letters, spaces, hyphens and apostrophes only."
+                          title="First name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
                           onBlur={(e: any) => {
                             const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
                             if (v !== e.target.value) e.target.value = v;
@@ -159,46 +207,23 @@ export function SurveyForm() {
 
                 <FormField
                   control={form.control}
-                  name="age"
+                  name="lastName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Age</FormLabel>
+                      <FormLabel>Last Name <span className="text-red-500">*</span></FormLabel>
                       <FormControl>
                         <Input
-                          type="number"
-                          placeholder="Ex. 18"
+                          placeholder="Enter your last name"
                           {...field}
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          min={14}
-                          max={30}
-                          step={1}
                           required
-                          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                            if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
-                          }}
-                          onPaste={(e: React.ClipboardEvent<HTMLInputElement>) => {
-                            const paste = e.clipboardData.getData('text');
-                            if (!/^\d+$/.test(paste)) e.preventDefault();
-                          }}
-                          onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                          minLength={2}
+                          maxLength={50}
+                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                          title="Last name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
                           onBlur={(e: any) => {
-                            const val = e.target.value;
-                            if (val === "") {
-                              field.onChange(undefined);
-                              field.onBlur?.();
-                              return;
-                            }
-                            let n = Number(val);
-                            if (Number.isNaN(n)) {
-                              field.onChange(undefined);
-                              field.onBlur?.();
-                              return;
-                            }
-                            if (n < 14) n = 14;
-                            if (n > 30) n = 30;
-                            if (String(n) !== val) e.target.value = String(n);
-                            field.onChange(n);
+                            const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                            if (v !== e.target.value) e.target.value = v;
+                            field.onChange(v);
                             field.onBlur?.();
                           }}
                           className="h-11 rounded-lg"
@@ -211,10 +236,100 @@ export function SurveyForm() {
 
                 <FormField
                   control={form.control}
+                  name="middleName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Middle Name <span className="text-red-500">*</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter your middle name"
+                          {...field}
+                          required
+                          minLength={2}
+                          maxLength={50}
+                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                          title="Middle name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
+                          onBlur={(e: any) => {
+                            const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                            if (v !== e.target.value) e.target.value = v;
+                            field.onChange(v);
+                            field.onBlur?.();
+                          }}
+                          className="h-11 rounded-lg"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="suffix"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Suffix <span className="text-slate-400 text-xs font-normal">(Optional)</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., Jr, Sr, III"
+                          {...field}
+                          maxLength={20}
+                          title="Suffix should be 0-20 characters; letters, numbers, spaces, periods and hyphens only."
+                          onBlur={(e: any) => {
+                            const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                            if (v !== e.target.value) e.target.value = v;
+                            field.onChange(v);
+                            field.onBlur?.();
+                          }}
+                          className="h-11 rounded-lg"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Personal Details */}
+                <FormField
+                  control={form.control}
+                  name="birthdate"
+                  render={({ field }) => {
+                    const today = new Date();
+                    const maxDate = new Date(today.getFullYear() - 14, today.getMonth(), today.getDate());
+                    const minDate = new Date(today.getFullYear() - 30, today.getMonth(), today.getDate());
+
+                    const maxDateStr = maxDate.toISOString().split('T')[0];
+                    const minDateStr = minDate.toISOString().split('T')[0];
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Birthdate <span className="text-red-500">*</span></FormLabel>
+                        <FormControl>
+                          <Input
+                            type="date"
+                            {...field}
+                            required
+                            min={minDateStr}
+                            max={maxDateStr}
+                            className="h-11 rounded-lg"
+                          />
+                        </FormControl>
+                        {birthdateError && (
+                          <p className="text-sm font-medium text-red-500 mt-1">{birthdateError}</p>
+                        )}
+                        <FormDescription className="text-xs">Must be between 14-30 years old</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+
+                <FormField
+                  control={form.control}
                   name="sex"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Sex</FormLabel>
+                      <FormLabel>Sex Assigned by Birth <span className="text-red-500">*</span></FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger className="h-11 rounded-lg">
@@ -232,20 +347,76 @@ export function SurveyForm() {
                   )}
                 />
 
+                {/* Contact Information */}
                 <FormField
                   control={form.control}
-                  name="civilStatus"
+                  name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Civil Status</FormLabel>
+                      <FormLabel>Email Address <span className="text-slate-400 text-xs font-normal">(Optional)</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="your@email.com"
+                          {...field}
+                          maxLength={100}
+                          title="Please enter a valid email address."
+                          onBlur={(e: any) => {
+                            const v = String(e.target.value || "").trim().toLowerCase();
+                            if (v !== e.target.value) e.target.value = v;
+                            field.onChange(v);
+                            field.onBlur?.();
+                          }}
+                          className="h-11 rounded-lg"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contactNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contact Number <span className="text-slate-400 text-xs font-normal">(Optional)</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          type="tel"
+                          placeholder="+63 9XX XXX XXXX"
+                          {...field}
+                          maxLength={20}
+                          title="Please enter a valid contact number."
+                          onBlur={(e: any) => {
+                            const v = String(e.target.value || "").trim();
+                            if (v !== e.target.value) e.target.value = v;
+                            field.onChange(v);
+                            field.onBlur?.();
+                          }}
+                          className="h-11 rounded-lg"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Location & Age */}
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location/Purok <span className="text-red-500">*</span></FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger className="h-11 rounded-lg">
-                            <SelectValue placeholder="Select status" />
+                            <SelectValue placeholder="Select location" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {CIVIL_STATUS_OPTIONS.map(opt => (
+                          {LOCATION_OPTIONS.map(opt => (
                             <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                           ))}
                         </SelectContent>
@@ -257,14 +428,73 @@ export function SurveyForm() {
 
                 <FormField
                   control={form.control}
-                  name="youthAgeGroup"
+                  name="age"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel>Age <span className="text-red-500">*</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Age"
+                          {...field}
+                          value={field.value || ''}
+                          readOnly
+                          className="h-11 rounded-lg bg-slate-50 text-slate-700 font-medium cursor-not-allowed"
+                        />
+                      </FormControl>
+                      <FormDescription className="text-xs">Calculated from birthdate</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch("location") === "Others (Outside Rizal)" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="col-span-1 md:col-span-2"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="otherLocation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Please Specify Your Location <span className="text-red-500">*</span></FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter your specific location"
+                              {...field}
+                              maxLength={100}
+                              required
+                              autoFocus
+                              onBlur={(e: any) => {
+                                const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                                if (v !== e.target.value) e.target.value = v;
+                                field.onChange(v);
+                                field.onBlur?.();
+                              }}
+                              className="h-11 rounded-lg"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </motion.div>
+                )}
+
+                <FormField
+                  control={form.control}
+                  name="youthAgeGroup"
+                  render={({ field }) => (
+                    <FormItem className="col-span-1 md:col-span-2">
                       <FormLabel>Youth Age Group</FormLabel>
                       <FormControl>
-                        <Input {...field} readOnly className="bg-slate-50 h-11 rounded-lg text-slate-500 font-medium" />
+                        <Input {...field} readOnly className="bg-slate-50 h-11 rounded-lg text-slate-700 font-medium cursor-not-allowed" />
                       </FormControl>
-                      <FormDescription>Automatically calculated based on age.</FormDescription>
+                      <FormDescription className="text-xs">14-17: Child Youth • 18-24: Core Youth • 25-30: Young Adult</FormDescription>
                     </FormItem>
                   )}
                 />
@@ -281,12 +511,13 @@ export function SurveyForm() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Education & Civil Status */}
                 <FormField
                   control={form.control}
                   name="educationalBackground"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Educational Background</FormLabel>
+                      <FormLabel>Educational Background <span className="text-red-500">*</span></FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger className="h-11 rounded-lg">
@@ -306,10 +537,34 @@ export function SurveyForm() {
 
                 <FormField
                   control={form.control}
+                  name="civilStatus"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Civil Status <span className="text-red-500">*</span></FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-11 rounded-lg">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {CIVIL_STATUS_OPTIONS.map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Youth & Work Status */}
+                <FormField
+                  control={form.control}
                   name="youthClassification"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Youth Classification</FormLabel>
+                      <FormLabel>Youth Classification <span className="text-red-500">*</span></FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger className="h-11 rounded-lg">
@@ -331,8 +586,8 @@ export function SurveyForm() {
                   control={form.control}
                   name="workStatus"
                   render={({ field }) => (
-                    <FormItem className="col-span-1 md:col-span-2">
-                      <FormLabel>Work Status</FormLabel>
+                    <FormItem>
+                      <FormLabel>Work Status <span className="text-red-500">*</span></FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger className="h-11 rounded-lg">
@@ -349,6 +604,40 @@ export function SurveyForm() {
                     </FormItem>
                   )}
                 />
+
+                {/* Conditional Special Needs Type */}
+                {form.watch("youthClassification") === "Youth with Special Needs" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="col-span-1 md:col-span-2"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="specialNeedsType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Special Needs Type <span className="text-red-500">*</span></FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-11 rounded-lg">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {SPECIAL_NEEDS_TYPE_OPTIONS.map(opt => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </motion.div>
+                )}
               </div>
             </div>
 
@@ -449,13 +738,19 @@ export function SurveyForm() {
 
               {/* Conditional fields for KK Assembly */}
               {form.watch("attendedKkAssembly") && (
-                <div className="mt-6 pt-6 border-t border-slate-100">
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="mt-6 pt-6 border-t border-slate-100"
+                >
                   <FormField
                     control={form.control}
                     name="kkAssemblyFrequency"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-base">How many times did you attend?</FormLabel>
+                        <FormLabel className="text-base">How many times did you attend? <span className="text-red-500">*</span></FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-11 rounded-lg">
@@ -472,17 +767,23 @@ export function SurveyForm() {
                       </FormItem>
                     )}
                   />
-                </div>
+                </motion.div>
               )}
 
               {form.watch("attendedKkAssembly") === false && (
-                <div className="mt-6 pt-6 border-t border-slate-100">
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="mt-6 pt-6 border-t border-slate-100"
+                >
                   <FormField
                     control={form.control}
                     name="kkAssemblyReasonNo"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-base">Why didn't you attend?</FormLabel>
+                        <FormLabel className="text-base">Why didn't you attend? <span className="text-red-500">*</span></FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-11 rounded-lg">
@@ -499,14 +800,14 @@ export function SurveyForm() {
                       </FormItem>
                     )}
                   />
-                </div>
+                </motion.div>
               )}
             </div>
 
             <Button
               type="submit"
-              className="w-full h-12 text-lg font-semibold rounded-xl bg-gradient-to-r from-primary to-indigo-700 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all"
-              disabled={createSurvey.isPending}
+              className="w-full h-12 text-lg font-semibold rounded-xl bg-gradient-to-r from-primary to-indigo-700 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={createSurvey.isPending || !!birthdateError}
             >
               {createSurvey.isPending ? (
                 <>
@@ -517,6 +818,11 @@ export function SurveyForm() {
                 "Submit Profile"
               )}
             </Button>
+            {birthdateError && (
+              <p className="text-sm text-red-500 text-center mt-2">
+                Please correct the errors above before submitting.
+              </p>
+            )}
           </form>
         </Form>
       </CardContent>

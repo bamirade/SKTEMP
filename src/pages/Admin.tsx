@@ -3,27 +3,42 @@ import { useSurveys } from "@/hooks/use-surveys";
 import { SurveyTable } from "@/components/SurveyTable";
 import { AdminStats } from "@/components/AdminStats";
 import { Link } from "wouter";
-import { Loader2, LayoutDashboard, ArrowLeft, Users, Lock } from "lucide-react";
+import { Loader2, LayoutDashboard, ArrowLeft, Users, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const { data: surveys, isLoading, isError } = useSurveys();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple temporary password check
+    setIsLoggingIn(true);
+    setErrorMsg("");
+    setHasError(false);
+
+    // Simulate API call delay for better UX (to be replaced with supabase authentication)
+    await new Promise(resolve => setTimeout(resolve, 800));
+
     if (password === "admin123") {
       setIsAuthenticated(true);
       setErrorMsg("");
     } else {
       setErrorMsg("Invalid password. Please try again.");
+      setHasError(true);
+      setPassword(""); // Clear password on error
+      // Remove error animation after it completes
+      setTimeout(() => setHasError(false), 600);
     }
+    setIsLoggingIn(false);
   };
 
   if (!isAuthenticated) {
@@ -41,35 +56,87 @@ export default function Admin() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
+              {errorMsg && (
+                <Alert variant="destructive" className="animate-in fade-in-0 slide-in-from-top-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errorMsg}</AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-2">
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full"
-                  autoFocus
-                />
-                {errorMsg && (
-                  <p className="text-sm text-destructive font-medium">{errorMsg}</p>
-                )}
+                <div className={`relative ${hasError ? 'animate-shake' : ''}`}>
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errorMsg) setErrorMsg("");
+                    }}
+                    className={`w-full pr-10 ${errorMsg ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    autoFocus
+                    disabled={isLoggingIn}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    disabled={isLoggingIn}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
+
               <div className="flex flex-col gap-2">
-                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
-                  Login to Dashboard
+                <Button
+                  type="submit"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  disabled={isLoggingIn || !password}
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Authenticating...
+                    </>
+                  ) : (
+                    "Login to Dashboard"
+                  )}
                 </Button>
                 <Link href="/">
-                  <Button variant="ghost" type="button" className="w-full text-slate-500 hover:text-slate-700">
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    className="w-full text-slate-500 hover:text-slate-700"
+                    disabled={isLoggingIn}
+                  >
                     Back to Survey
                   </Button>
                 </Link>
               </div>
+
               <p className="text-xs text-center text-slate-400 mt-4">
                 Temporary access. Supabase integration coming soon.
               </p>
             </form>
           </CardContent>
         </Card>
+
+        <style>{`
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+            20%, 40%, 60%, 80% { transform: translateX(4px); }
+          }
+          .animate-shake {
+            animation: shake 0.5s ease-in-out;
+          }
+        `}</style>
       </div>
     );
   }

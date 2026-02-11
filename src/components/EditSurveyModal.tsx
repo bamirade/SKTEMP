@@ -25,12 +25,13 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
   const form = useForm<Partial<Survey>>({
     mode: "onTouched",
     defaultValues: {
-      name: "",
+      firstName: "",
+      lastName: "",
       age: undefined,
       sex: "Male",
       civilStatus: "Single",
       youthClassification: "In School Youth",
-      workStatus: "Unemployed",
+      workStatus: "Student",
       educationalBackground: "High School Level",
       youthAgeGroup: "Child Youth",
       registeredSkVoter: false,
@@ -45,12 +46,13 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
   useEffect(() => {
     if (survey) {
       form.reset({
-        name: survey.name ?? "",
+        firstName: survey.firstName ?? "",
+        lastName: survey.lastName ?? "",
         age: survey.age ?? undefined,
         sex: survey.sex ?? "Male",
         civilStatus: survey.civilStatus ?? "Single",
         youthClassification: survey.youthClassification ?? "In School Youth",
-        workStatus: survey.workStatus ?? "Unemployed",
+        workStatus: survey.workStatus ?? "Student",
         educationalBackground: survey.educationalBackground ?? "High School Level",
         youthAgeGroup: survey.youthAgeGroup ?? "Child Youth",
         registeredSkVoter: survey.registeredSkVoter ?? false,
@@ -78,8 +80,8 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
 
   const onSubmit = async (values: Partial<Survey>) => {
     if (!survey) return;
-    if (!values.name || values.name.trim() === "") {
-      toast({ title: "Error", description: "Name cannot be empty.", variant: "destructive" });
+    if (!values.firstName || values.firstName.trim() === "" || !values.lastName || values.lastName.trim() === "") {
+      toast({ title: "Error", description: "First name and last name cannot be empty.", variant: "destructive" });
       return;
     }
 
@@ -103,33 +105,63 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-2">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Full Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      required
-                      minLength={2}
-                      maxLength={100}
-                      pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
-                      title="Name should be 2-100 characters; letters, spaces, hyphens and apostrophes only."
-                      onBlur={(e: any) => {
-                        const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
-                        if (v !== e.target.value) e.target.value = v;
-                        field.onChange(v);
-                        field.onBlur?.();
-                      }}
-                      className="h-10 rounded-md"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>First Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        required
+                        minLength={2}
+                        maxLength={50}
+                        pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                        title="First name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
+                        onBlur={(e: any) => {
+                          const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                          if (v !== e.target.value) e.target.value = v;
+                          field.onChange(v);
+                          field.onBlur?.();
+                        }}
+                        className="h-10 rounded-md"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Last Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        required
+                        minLength={2}
+                        maxLength={50}
+                        pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                        title="Last name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
+                        onBlur={(e: any) => {
+                          const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                          if (v !== e.target.value) e.target.value = v;
+                          field.onChange(v);
+                          field.onBlur?.();
+                        }}
+                        className="h-10 rounded-md"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <FormField

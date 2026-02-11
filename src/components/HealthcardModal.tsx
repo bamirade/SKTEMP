@@ -39,7 +39,7 @@ export function HealthcardModal({ survey, open, onOpenChange }: HealthcardModalP
       const data = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.href = data;
-      link.download = `${survey.name.replace(/\s+/g, "_")}-healthcard.png`;
+      link.download = `${`${survey.firstName} ${survey.lastName}`.replace(/\s+/g, "_")}-healthcard.png`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -125,7 +125,7 @@ export function HealthcardModal({ survey, open, onOpenChange }: HealthcardModalP
                 <div className="flex-1 space-y-1">
                   <div>
                     <div className="text-[8px] text-red-200 uppercase tracking-wider">Name</div>
-                    <div className="text-sm font-bold leading-snug break-words pr-1">{survey.name}</div>
+                    <div className="text-sm font-bold leading-snug break-words pr-1">{survey.firstName} {survey.lastName}</div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
