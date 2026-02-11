@@ -105,6 +105,8 @@ function FilterDropdown({ column }: { column: Column<any, unknown> }) {
 
 interface SurveyTableProps {
   data: Survey[];
+  onDelete?: (id: number) => Promise<void>;
+  onRefresh?: () => Promise<void>;
 }
 
 // Define which columns should be visible by default
@@ -118,7 +120,7 @@ const DEFAULT_VISIBLE_COLUMNS = new Set([
   'actions',
 ]);
 
-export function SurveyTable({ data }: SurveyTableProps) {
+export function SurveyTable({ data, onDelete, onRefresh }: SurveyTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   // Define sortable columns and labels
   const sortableColumns = [
@@ -449,17 +451,44 @@ export function SurveyTable({ data }: SurveyTableProps) {
                       </AlertDialogTrigger>
                     </TooltipTrigger>
                     <TooltipContent>Delete Record</TooltipContent>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="max-w-md">
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Record</AlertDialogTitle>
+                        <AlertDialogTitle className="text-red-600 flex items-center gap-2">
+                          <Trash2 className="h-5 w-5" />
+                          Delete Record?
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete the record for {survey.firstName} {survey.lastName}? This action cannot be undone.
+                          This action will permanently remove the survey record from the database.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => handleDelete(survey.id)}>
-                          Delete
+                      <div className="space-y-3 py-4">
+                        <div className="font-medium text-slate-900">
+                          You are about to permanently delete:
+                        </div>
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
+                          <div className="font-semibold text-slate-900">
+                            {survey.firstName} {survey.lastName}
+                          </div>
+                          <div className="text-sm text-slate-600 space-y-1">
+                            {survey.age && <div>Age: {survey.age}</div>}
+                            {survey.sex && <div>Sex: {survey.sex}</div>}
+                            {survey.location && <div>Location: {survey.location}</div>}
+                          </div>
+                        </div>
+                        <div className="text-red-600 font-medium text-sm">
+                          ⚠️ This action cannot be undone.
+                        </div>
+                      </div>
+                      <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel className="border-slate-300 hover:bg-slate-50">
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+                          onClick={() => handleDelete(survey.id)}
+                        >
+                          {deletingId === survey.id && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                          Delete Record
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -603,24 +632,240 @@ export function SurveyTable({ data }: SurveyTableProps) {
 
     // Build sheet with filter info header, then data
     const wsWithFilter = XLSX.utils.aoa_to_sheet([
-      ['Export Filters:', filterInfo],
-      ['Total Records:', sortedFilteredData.length],
+      ['SK RIZAL YOUTH SURVEY DATA'],
+      [],
+      ['Export Information'],
       ['Export Date:', new Date().toLocaleString()],
-      ['Total Columns:', allColumns.length],
+      ['Total Records:', sortedFilteredData.length],
+      ['Data Fields:', allColumns.length],
+      ['Applied Filters:', filterInfo],
       [],
       headers
     ]);
 
-    XLSX.utils.sheet_add_aoa(wsWithFilter, rows, { origin: 'A7' });
+    XLSX.utils.sheet_add_aoa(wsWithFilter, rows, { origin: 'A10' });
 
-    // Create statistics sheet
+    // Auto-fit column widths
+    const colWidths = headers.map((header, i) => {
+      const headerLen = header.toString().length;
+      const maxDataLen = Math.max(
+        ...rows.slice(0, 100).map(row => (row[i]?.toString() || '').length),
+        headerLen
+      );
+      return { wch: Math.min(Math.max(maxDataLen + 2, 10), 50) };
+    });
+    wsWithFilter['!cols'] = colWidths;
+
+    // Freeze header row (row 9 - the headers)
+    wsWithFilter['!freeze'] = { xSplit: 0, ySplit: 9, topLeftCell: 'A10' };
+
+    // Enable Excel filters on the data table
+    if (sortedFilteredData.length > 0) {
+      wsWithFilter['!autofilter'] = { ref: `A9:${XLSX.utils.encode_col(headers.length - 1)}${9 + sortedFilteredData.length}` };
+    }
+
+    // Style the workbook cells
+
+    // Style title (A1)
+    if (wsWithFilter['A1']) {
+      wsWithFilter['A1'].s = {
+        font: { bold: true, sz: 16, color: { rgb: "C9182A" } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        fill: { fgColor: { rgb: "F8F9FA" } }
+      };
+    }
+
+    // Merge title cell across all columns
+    if (!wsWithFilter['!merges']) wsWithFilter['!merges'] = [];
+    wsWithFilter['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } });
+
+    // Style "Export Information" header (A3)
+    if (wsWithFilter['A3']) {
+      wsWithFilter['A3'].s = {
+        font: { bold: true, sz: 12, color: { rgb: "C9182A" } },
+        fill: { fgColor: { rgb: "F8F9FA" } },
+        border: {
+          bottom: { style: 'medium', color: { rgb: "C9182A" } }
+        }
+      };
+    }
+    wsWithFilter['!merges'].push({ s: { r: 2, c: 0 }, e: { r: 2, c: headers.length - 1 } });
+
+    // Style info labels (A4:A7)
+    ['A4', 'A5', 'A6', 'A7'].forEach(cell => {
+      if (wsWithFilter[cell]) {
+        wsWithFilter[cell].s = {
+          font: { bold: true, sz: 10 },
+          fill: { fgColor: { rgb: "F1F3F5" } }
+        };
+      }
+    });
+
+    // Style header row (row 9)
+    for (let col = 0; col < headers.length; col++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: 8, c: col });
+      if (wsWithFilter[cellAddr]) {
+        wsWithFilter[cellAddr].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+          fill: { fgColor: { rgb: "C9182A" } },
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          border: {
+            top: { style: 'thin', color: { rgb: "000000" } },
+            bottom: { style: 'thin', color: { rgb: "000000" } },
+            left: { style: 'thin', color: { rgb: "000000" } },
+            right: { style: 'thin', color: { rgb: "000000" } }
+          }
+        };
+      }
+    }
+
+    // Style data rows with alternating colors
+    for (let row = 9; row < 9 + sortedFilteredData.length; row++) {
+      const isEven = (row - 9) % 2 === 0;
+      for (let col = 0; col < headers.length; col++) {
+        const cellAddr = XLSX.utils.encode_cell({ r: row, c: col });
+        if (wsWithFilter[cellAddr]) {
+          wsWithFilter[cellAddr].s = {
+            alignment: {
+              horizontal: col === 0 ? 'left' : 'center',
+              vertical: 'center',
+              wrapText: false
+            },
+            fill: { fgColor: { rgb: isEven ? "FFFFFF" : "F8F9FA" } },
+            border: {
+              top: { style: 'thin', color: { rgb: "E9ECEF" } },
+              bottom: { style: 'thin', color: { rgb: "E9ECEF" } },
+              left: { style: 'thin', color: { rgb: "E9ECEF" } },
+              right: { style: 'thin', color: { rgb: "E9ECEF" } }
+            }
+          };
+        }
+      }
+    }
+
+    // Set row heights
+    wsWithFilter['!rows'] = [
+      { hpt: 30 }, // Title row
+      { hpt: 10 },  // Empty row
+      { hpt: 20 },  // "Export Information"
+      { hpt: 18 },  // Export Date
+      { hpt: 18 },  // Total Records
+      { hpt: 18 },  // Data Fields
+      { hpt: 18 },  // Applied Filters
+      { hpt: 10 },  // Empty row
+      { hpt: 25 },  // Header row
+    ];
+
+    // Create statistics sheet with improved formatting
     const statsSheet = XLSX.utils.aoa_to_sheet([
-      ['Survey Statistics Report'],
+      ['SK RIZAL SURVEY STATISTICS'],
+      [],
+      ['Report Information'],
       ['Export Date:', new Date().toLocaleString()],
       ['Total Records:', sortedFilteredData.length],
+      ['Data Fields Analyzed:', allColumns.filter(c => c !== 'name').length],
       [],
       ...statisticsRows
     ]);
+
+    // Auto-fit columns for statistics sheet
+    const statsColWidths = [
+      { wch: 35 }, // Field names
+      { wch: 15 }, // Count
+      { wch: 12 }, // Percentage
+    ];
+    statsSheet['!cols'] = statsColWidths;
+
+    // Style statistics sheet
+    // Title
+    if (statsSheet['A1']) {
+      statsSheet['A1'].s = {
+        font: { bold: true, sz: 16, color: { rgb: "C9182A" } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        fill: { fgColor: { rgb: "F8F9FA" } }
+      };
+    }
+    if (!statsSheet['!merges']) statsSheet['!merges'] = [];
+    statsSheet['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } });
+
+    // "Report Information" header
+    if (statsSheet['A3']) {
+      statsSheet['A3'].s = {
+        font: { bold: true, sz: 12, color: { rgb: "C9182A" } },
+        fill: { fgColor: { rgb: "F8F9FA" } },
+        border: { bottom: { style: 'medium', color: { rgb: "C9182A" } } }
+      };
+    }
+    statsSheet['!merges'].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 2 } });
+
+    // Info labels
+    ['A4', 'A5', 'A6'].forEach(cell => {
+      if (statsSheet[cell]) {
+        statsSheet[cell].s = {
+          font: { bold: true, sz: 10 },
+          fill: { fgColor: { rgb: "F1F3F5" } }
+        };
+      }
+    });
+
+    // Style statistics data
+    const statsRange = XLSX.utils.decode_range(statsSheet['!ref'] || 'A1');
+    for (let row = 7; row <= statsRange.e.r; row++) {
+      for (let col = 0; col <= statsRange.e.c; col++) {
+        const cellAddr = XLSX.utils.encode_cell({ r: row, c: col });
+        if (statsSheet[cellAddr]) {
+          const cellValue = statsSheet[cellAddr].v;
+          const isHeader = typeof cellValue === 'string' &&
+                          (!cellValue.startsWith('  ') && cellValue !== 'STATISTICS' && cellValue.trim().length > 0);
+          const isTotal = typeof cellValue === 'string' && cellValue.includes('TOTAL');
+          const isSectionTitle = cellValue === 'STATISTICS';
+
+          if (isSectionTitle) {
+            statsSheet[cellAddr].s = {
+              font: { bold: true, sz: 14, color: { rgb: "C9182A" } },
+              alignment: { horizontal: 'center', vertical: 'center' },
+              fill: { fgColor: { rgb: "F8F9FA" } }
+            };
+          } else if (isHeader && !isTotal) {
+            statsSheet[cellAddr].s = {
+              font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "495057" } },
+              alignment: { horizontal: 'left', vertical: 'center' },
+              border: {
+                top: { style: 'thin', color: { rgb: "000000" } },
+                bottom: { style: 'thin', color: { rgb: "000000" } },
+                left: { style: 'thin', color: { rgb: "000000" } },
+                right: { style: 'thin', color: { rgb: "000000" } }
+              }
+            };
+          } else if (isTotal) {
+            statsSheet[cellAddr].s = {
+              font: { bold: true, sz: 10, color: { rgb: "C9182A" } },
+              fill: { fgColor: { rgb: "FFF3CD" } },
+              alignment: { horizontal: col === 0 ? 'left' : 'center', vertical: 'center' },
+              border: {
+                top: { style: 'medium', color: { rgb: "C9182A" } },
+                bottom: { style: 'thin', color: { rgb: "000000" } }
+              }
+            };
+          } else {
+            statsSheet[cellAddr].s = {
+              alignment: { horizontal: col === 0 ? 'left' : 'center', vertical: 'center' },
+              fill: { fgColor: { rgb: row % 2 === 0 ? "FFFFFF" : "F8F9FA" } },
+              border: {
+                top: { style: 'thin', color: { rgb: "E9ECEF" } },
+                bottom: { style: 'thin', color: { rgb: "E9ECEF" } }
+              }
+            };
+          }
+        }
+      }
+    }
+
+    // Set row heights for statistics
+    if (!statsSheet['!rows']) statsSheet['!rows'] = [];
+    statsSheet['!rows'][0] = { hpt: 30 }; // Title
+    statsSheet['!rows'][2] = { hpt: 20 }; // "Report Information"
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, wsWithFilter, "Survey Data");
@@ -640,9 +885,6 @@ export function SurveyTable({ data }: SurveyTableProps) {
     setIsExporting(true);
     try {
       const sortedFilteredData = getSortedData(filteredData);
-    const filterInfo = columnFilters.length > 0
-      ? columnFilters.map(f => `${f.id}: ${Array.isArray(f.value) ? f.value.join(', ') : f.value}`).join(' | ')
-      : 'No filters applied';
 
     // Define column data extractors
     const columnDataExtractors: Record<string, (survey: Survey) => string | number> = {
@@ -705,47 +947,249 @@ export function SurveyTable({ data }: SurveyTableProps) {
 
     const doc = new jsPDF();
 
-    // Add title and filter/stat information
-    doc.setFontSize(14);
-    const title = columnFilters.length > 0 ? "Youth Survey Report (Filtered)" : "Youth Survey Report";
-    doc.text(title, 14, 15);
+    // Load logo image properly before PDF generation
+    let logoDataUrl: string | null = null;
+    try {
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
 
+      await new Promise<void>((resolve) => {
+        logoImg.onload = () => {
+          // Convert image to data URL
+          const canvas = document.createElement('canvas');
+          canvas.width = logoImg.width;
+          canvas.height = logoImg.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(logoImg, 0, 0);
+            logoDataUrl = canvas.toDataURL('image/png');
+          }
+          resolve();
+        };
+        logoImg.onerror = () => resolve(); // Continue without logo if it fails
+        logoImg.src = '/favicon.png';
+
+        // Timeout after 2 seconds to avoid hanging
+        setTimeout(() => resolve(), 2000);
+      });
+    } catch (e) {
+      console.warn('Logo could not be loaded:', e);
+    }
+
+    // Helper function to add page numbers
+    const addPageNumbers = () => {
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.text(
+          `Page ${i} of ${pageCount}`,
+          doc.internal.pageSize.width / 2,
+          doc.internal.pageSize.height - 10,
+          { align: 'center' }
+        );
+      }
+    };
+
+    // Cover Page - Print-friendly design
+    // Add logo if it was loaded successfully
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', doc.internal.pageSize.width / 2 - 15, 15, 30, 30);
+      } catch (e) {
+        console.warn('Could not add logo to PDF:', e);
+      }
+    }
+
+    doc.setTextColor(201, 24, 42);
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text('Sangguniang Kabataan ng Barangay Rizal', doc.internal.pageSize.width / 2, 52, { align: 'center' });
+    doc.text('Lungsod ng Santiago', doc.internal.pageSize.width / 2, 58, { align: 'center' });
+
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0);
+    doc.text('Youth Survey Report', doc.internal.pageSize.width / 2, 72, { align: 'center' });
+
+    // Decorative line
+    doc.setDrawColor(201, 24, 42);
+    doc.setLineWidth(0.5);
+    doc.line(50, 77, doc.internal.pageSize.width - 50, 77);
+
+    // Date below header
+    doc.setTextColor(100);
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }), doc.internal.pageSize.width / 2, 85, { align: 'center' });
+
+    // Summary boxes - Print-friendly
+    doc.setTextColor(0);
+    const boxY = 100;
+    const boxWidth = 85;
+    const boxHeight = 35;
+    const boxGap = 10;
+
+    // Box 1: Total Records
+    doc.setDrawColor(201, 24, 42);
+    doc.setLineWidth(0.75);
+    doc.roundedRect(14, boxY, boxWidth, boxHeight, 3, 3, 'S');
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100);
+    doc.text('Total Records', 14 + boxWidth / 2, boxY + 12, { align: 'center' });
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(201, 24, 42);
+    doc.text(String(sortedFilteredData.length), 14 + boxWidth / 2, boxY + 26, { align: 'center' });
+
+    // Box 2: Data Fields
+    doc.setDrawColor(201, 24, 42);
+    doc.setLineWidth(0.75);
+    doc.roundedRect(14 + boxWidth + boxGap, boxY, boxWidth, boxHeight, 3, 3, 'S');
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text('Data Fields', 14 + boxWidth + boxGap + boxWidth / 2, boxY + 12, { align: 'center' });
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(201, 24, 42);
+    doc.text(String(visiblePdfColumns.length), 14 + boxWidth + boxGap + boxWidth / 2, boxY + 26, { align: 'center' });
+
+    // Filters section
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(0);
+    doc.text('Applied Filters', 14, boxY + boxHeight + 18);
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(14, boxY + boxHeight + 20, 85, boxY + boxHeight + 20);
+
+    doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(`Filters Applied: ${filterInfo}`, 14, 25);
-    doc.text(`Total Records: ${sortedFilteredData.length} | Export Date: ${new Date().toLocaleString()}`, 14, 32);
-    doc.text(`Report Key Columns: ${visiblePdfColumns.length}`, 14, 39);
+    if (columnFilters.length > 0) {
+      let filterY = boxY + boxHeight + 28;
+      columnFilters.forEach(filter => {
+        const filterLabel = columnLabels[filter.id] || filter.id;
+        const filterValue = Array.isArray(filter.value) ? filter.value.join(', ') : filter.value;
+        doc.setTextColor(201, 24, 42);
+        doc.text('•', 16, filterY);
+        doc.setTextColor(60);
+        doc.text(`${filterLabel}: ${filterValue}`, 20, filterY);
+        filterY += 6;
+      });
+    } else {
+      doc.text('No filters applied - showing all records', 14, boxY + boxHeight + 28);
+    }
+
+    // New page for data table
+    doc.addPage();
     doc.setTextColor(0);
 
-    // Generate the table
+    // Data table header - Print-friendly
+    doc.setDrawColor(201, 24, 42);
+    doc.setLineWidth(1);
+    doc.line(14, 20, doc.internal.pageSize.width - 14, 20);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100);
+    doc.text('SK Rizal - Lungsod ng Santiago', 14, 12);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0);
+    doc.text('Survey Data', 14, 18);
+
+    // Generate the table with print-friendly styling
     autoTable(doc, {
       head: [headers],
       body: body,
-      startY: 48,
+      startY: 25,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        fontSize: 9,
+        fontStyle: 'bold',
+        halign: 'center',
+        lineWidth: 0.5,
+        lineColor: [201, 24, 42],
+      },
+      bodyStyles: {
+        fontSize: 8,
+        cellPadding: 3,
+        lineWidth: 0.1,
+        lineColor: [200, 200, 200],
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto', fontStyle: 'bold' }, // Name column
+      },
+      margin: { top: 25, bottom: 20 },
+      didDrawPage: (data) => {
+        // Add section header on each page
+        if (data.pageNumber > 2) {
+          doc.setDrawColor(201, 24, 42);
+          doc.setLineWidth(1);
+          doc.line(14, 20, doc.internal.pageSize.width - 14, 20);
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'normal');
+          doc.setTextColor(100);
+          doc.text('SK Rizal - Lungsod ng Santiago', 14, 12);
+          doc.setFontSize(14);
+          doc.setFont(undefined, 'bold');
+          doc.setTextColor(0);
+          doc.text('Survey Data (continued)', 14, 18);
+        }
+      },
     });
 
     // Add new page for statistics
     doc.addPage();
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text('Complete Statistics Report', 14, 15);
 
-    doc.setFontSize(10);
+    // Statistics page header - Print-friendly
+    doc.setDrawColor(201, 24, 42);
+    doc.setLineWidth(1);
+    doc.line(14, 20, doc.internal.pageSize.width - 14, 20);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
     doc.setTextColor(100);
-    doc.text(`Report Date: ${new Date().toLocaleString()}`, 14, 25);
-    doc.text(`Total Records: ${sortedFilteredData.length}`, 14, 32);
-    doc.text(`Filters Applied: ${filterInfo}`, 14, 39);
+    doc.text('SK Rizal - Lungsod ng Santiago', 14, 12);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
     doc.setTextColor(0);
+    doc.text('Complete Statistics Report', 14, 18);
 
     // Get all columns for statistics
     const allColumns = Object.keys(columnDataExtractors);
 
-    doc.setFontSize(9);
-    let statsY = 48;
+    let statsY = 35;
     const pageHeight = doc.internal.pageSize.height;
+    const leftMargin = 14;
+    const rightMargin = doc.internal.pageSize.width - 14;
+    const contentWidth = rightMargin - leftMargin;
+
+    // Helper function to draw a print-friendly progress bar
+    const drawProgressBar = (x: number, y: number, width: number, percentage: number) => {
+      // Background border
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.3);
+      doc.rect(x, y - 3, width, 5, 'S');
+
+      // Foreground fill (minimal)
+      const fillWidth = (width * percentage) / 100;
+      if (fillWidth > 0) {
+        doc.setFillColor(220, 220, 220);
+        doc.rect(x, y - 3, fillWidth, 5, 'F');
+      }
+    };
 
     // Calculate statistics for ALL columns (excluding name)
-    allColumns.filter(colId => colId !== 'name').forEach(colId => {
+    allColumns.filter(colId => colId !== 'name').forEach((colId) => {
       const columnValues = sortedFilteredData
         .map(s => columnDataExtractors[colId]?.(s))
         .filter(v => v !== '-');
@@ -758,94 +1202,170 @@ export function SurveyTable({ data }: SurveyTableProps) {
         valueCounts[strVal] = (valueCounts[strVal] || 0) + 1;
       });
 
-      // Draw separator line
-      doc.setDrawColor(220, 220, 220);
-      doc.line(14, statsY, 196, statsY);
-      statsY += 4;
-
       // Check if we need a new page before starting this section
-      if (statsY > pageHeight - 30) {
+      const estimatedHeight = 25 + (Object.keys(valueCounts).length * 10);
+      if (statsY + estimatedHeight > pageHeight - 30) {
         doc.addPage();
-        statsY = 10;
+        // Add header on new page
+        doc.setDrawColor(201, 24, 42);
+        doc.setLineWidth(1);
+        doc.line(14, 20, doc.internal.pageSize.width - 14, 20);
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(100);
+        doc.text('SK Rizal - Lungsod ng Santiago', 14, 12);
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(0);
+        doc.text('Complete Statistics Report (continued)', 14, 18);
+        statsY = 35;
       }
 
+      // Draw section border (no background fill)
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.3);
+      const sectionHeight = 12 + (Object.keys(valueCounts).length * 8) + 8;
+      doc.roundedRect(leftMargin, statsY - 2, contentWidth, sectionHeight, 2, 2, 'S');
+
+      // Column header with icon
+      doc.setTextColor(201, 24, 42);
       doc.setFont(undefined, 'bold');
-      doc.setFontSize(10);
-      doc.text(`${columnLabels[colId] || colId}:`, 14, statsY);
-      statsY += 6;
+      doc.setFontSize(11);
+      doc.text(`▸ ${columnLabels[colId] || colId}`, leftMargin + 3, statsY + 5);
+
+      // Total count text (no badge fill)
+      const badge = `${sortedFilteredData.filter(s => columnDataExtractors[colId]?.(s) !== '-').length} responses`;
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100);
+      doc.text(badge, rightMargin, statsY + 4.5, { align: 'right' });
+
+      statsY += 12;
+
+      // Draw values with progress bars
       doc.setFont(undefined, 'normal');
       doc.setFontSize(9);
+      doc.setTextColor(60);
 
-      Object.entries(valueCounts)
-        .sort((a, b) => b[1] - a[1])
-        .forEach(([value, count]) => {
-          const percentage = ((count / sortedFilteredData.length) * 100).toFixed(1);
-          doc.text(`  • ${value}`, 14, statsY);
-          doc.text(`${count} (${percentage}%)`, 140, statsY);
-          statsY += 4;
+      const sortedValues = Object.entries(valueCounts).sort((a, b) => b[1] - a[1]);
 
-          // Add new page if content goes beyond page height
-          if (statsY > pageHeight - 10) {
-            doc.addPage();
-            statsY = 10;
-          }
-        });
+      sortedValues.forEach(([value, count]) => {
+        const percentage = (count / sortedFilteredData.length) * 100;
 
-      // Add total row for this column
-      const columnTotal = sortedFilteredData.filter(s => {
-        const val = columnDataExtractors[colId]?.(s);
-        return val !== '-';
-      }).length;
-      doc.setFont(undefined, 'bold');
-      doc.text(`  TOTAL`, 14, statsY);
-      doc.text(`${columnTotal} (100%)`, 140, statsY);
-      doc.setFont(undefined, 'normal');
-      statsY += 8;
+        // Value label
+        const maxLabelWidth = 80;
+        const truncatedValue = value.length > 30 ? value.substring(0, 27) + '...' : value;
+        doc.text(truncatedValue, leftMargin + 6, statsY);
 
-      // Add new page if needed
-      if (statsY > pageHeight - 20) {
-        doc.addPage();
-        statsY = 10;
-      }
+        // Progress bar
+        const barX = leftMargin + maxLabelWidth;
+        const barWidth = contentWidth - maxLabelWidth - 40;
+        drawProgressBar(barX, statsY, barWidth, percentage);
+
+        // Count and percentage
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(201, 24, 42);
+        doc.text(`${count}`, rightMargin - 25, statsY);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(100);
+        doc.setFontSize(8);
+        doc.text(`${percentage.toFixed(1)}%`, rightMargin - 1, statsY, { align: 'right' });
+        doc.setFontSize(9);
+
+        statsY += 8;
+
+        // Add new page if content goes beyond page height
+        if (statsY > pageHeight - 20) {
+          doc.addPage();
+          doc.setDrawColor(201, 24, 42);
+          doc.setLineWidth(1);
+          doc.line(14, 20, doc.internal.pageSize.width - 14, 20);
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'normal');
+          doc.setTextColor(100);
+          doc.text('SK Rizal - Lungsod ng Santiago', 14, 12);
+          doc.setFontSize(14);
+          doc.setFont(undefined, 'bold');
+          doc.setTextColor(0);
+          doc.text('Complete Statistics Report (continued)', 14, 18);
+          statsY = 35;
+        }
+      });
+
+      statsY += 6;
     });
 
-    // Add summary section at the end
-    doc.setDrawColor(50, 50, 50);
-    doc.setLineWidth(0.5);
-    doc.line(14, statsY, 196, statsY);
-    statsY += 8;
-
-    if (statsY > pageHeight - 30) {
+    // Add comprehensive summary section
+    if (statsY > pageHeight - 80) {
       doc.addPage();
-      statsY = 10;
+      statsY = 35;
     }
 
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(12);
-    doc.text('Report Summary', 14, statsY);
+    // Summary section - Print-friendly
+    doc.setDrawColor(201, 24, 42);
+    doc.setLineWidth(0.75);
+    doc.line(14, statsY, doc.internal.pageSize.width - 14, statsY);
     statsY += 8;
+    doc.setTextColor(0);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(13);
+    doc.text('Report Summary', doc.internal.pageSize.width / 2, statsY, { align: 'center' });
+    doc.setLineWidth(0.75);
+    doc.line(14, statsY + 2, doc.internal.pageSize.width - 14, statsY + 2);
+    statsY += 12;
 
-    doc.setFont(undefined, 'normal');
+    // Summary boxes
+    const summaryBoxY = statsY;
+    const summaryBoxWidth = (contentWidth - 10) / 2;
+
+    // Left box
+    doc.setDrawColor(201, 24, 42);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(leftMargin, summaryBoxY, summaryBoxWidth, 40, 3, 3, 'S');
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text('Dataset Information', leftMargin + summaryBoxWidth / 2, summaryBoxY + 8, { align: 'center' });
+
     doc.setFontSize(9);
-    doc.text(`Total Records Analyzed: ${sortedFilteredData.length}`, 14, statsY);
-    statsY += 5;
-    doc.text(`Total Data Fields: ${allColumns.length - 1}`, 14, statsY); // -1 for name
-    statsY += 5;
-    doc.text(`Export Date: ${new Date().toLocaleString()}`, 14, statsY);
-    statsY += 5;
+    doc.setTextColor(60);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Total Records: ${sortedFilteredData.length}`, leftMargin + 5, summaryBoxY + 18);
+    doc.text(`Data Fields: ${allColumns.length - 1}`, leftMargin + 5, summaryBoxY + 26);
+    doc.text(`Export Date: ${new Date().toLocaleDateString()}`, leftMargin + 5, summaryBoxY + 34);
+
+    // Right box
+    doc.setDrawColor(201, 24, 42);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(leftMargin + summaryBoxWidth + 10, summaryBoxY, summaryBoxWidth, 40, 3, 3, 'S');
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.setFont(undefined, 'bold');
+    doc.text('Filter Status', leftMargin + summaryBoxWidth + 10 + summaryBoxWidth / 2, summaryBoxY + 8, { align: 'center' });
+
+    doc.setFontSize(9);
+    doc.setTextColor(60);
+    doc.setFont(undefined, 'normal');
 
     if (columnFilters.length > 0) {
-      doc.text(`Active Filters: ${columnFilters.length}`, 14, statsY);
-      statsY += 5;
-      columnFilters.forEach(filter => {
+      doc.text(`Active Filters: ${columnFilters.length}`, leftMargin + summaryBoxWidth + 15, summaryBoxY + 18);
+      let filterTextY = summaryBoxY + 26;
+      columnFilters.slice(0, 2).forEach(filter => {
         const filterLabel = columnLabels[filter.id] || filter.id;
-        const filterValue = Array.isArray(filter.value) ? filter.value.join(', ') : filter.value;
-        doc.text(`  • ${filterLabel}: ${filterValue}`, 14, statsY);
-        statsY += 4;
+        doc.text(`• ${filterLabel}`, leftMargin + summaryBoxWidth + 15, filterTextY);
+        filterTextY += 6;
       });
+      if (columnFilters.length > 2) {
+        doc.text(`... and ${columnFilters.length - 2} more`, leftMargin + summaryBoxWidth + 15, filterTextY);
+      }
     } else {
-      doc.text(`Active Filters: None (showing all records)`, 14, statsY);
+      doc.text('No filters applied', leftMargin + summaryBoxWidth + 15, summaryBoxY + 18);
+      doc.text('Showing all records', leftMargin + summaryBoxWidth + 15, summaryBoxY + 26);
     }
+
+    // Add page numbers to all pages
+    addPageNumbers();
 
     doc.save('youth_surveys_filtered.pdf');
     toast({ title: "Success", description: "PDF file exported successfully!" });
@@ -857,17 +1377,30 @@ export function SurveyTable({ data }: SurveyTableProps) {
   };
 
   const handleDelete = async (id: number) => {
+    const recordToDelete = data.find(r => r.id === id);
     setDeletingId(id);
+
     try {
-      await deleteSurvey.mutateAsync(id);
-      toast({ title: "Deleted", description: "Survey record deleted successfully." });
+      if (onDelete) {
+        await onDelete(id);
+      } else {
+        await deleteSurvey.mutateAsync(id);
+      }
+
+      toast({
+        title: "Record Deleted",
+        description: `${recordToDelete?.firstName} ${recordToDelete?.lastName}'s record has been permanently removed.`,
+      });
     } catch (err) {
-      toast({ title: "Error", description: "Failed to delete record.", variant: "destructive" });
+      toast({
+        title: "Deletion Failed",
+        description: `Could not delete ${recordToDelete?.firstName} ${recordToDelete?.lastName}'s record. Please try again.`,
+        variant: "destructive",
+      });
     } finally {
       setDeletingId(null);
     }
   };
-
 
   return (
     <div className="space-y-4">
@@ -1184,8 +1717,9 @@ export function SurveyTable({ data }: SurveyTableProps) {
         survey={editSurvey}
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
-        onUpdated={() => {
+        onUpdated={async () => {
           setIsEditModalOpen(false);
+          await onRefresh?.();
         }}
       />
     </div>

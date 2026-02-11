@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, RotateCcw } from "lucide-react";
+import { Loader2, CheckCircle2, RotateCcw, Shield, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function SurveyForm() {
@@ -19,6 +19,8 @@ export function SurveyForm() {
   const createSurvey = useCreateSurvey();
   const [isSuccess, setIsSuccess] = useState(false);
   const [birthdateError, setBirthdateError] = useState<string | null>(null);
+  const [confirmInfoAccuracy, setConfirmInfoAccuracy] = useState(false);
+  const [acceptDataPrivacy, setAcceptDataPrivacy] = useState(false);
 
   const form = useForm<CreateSurveyInput>({
     resolver: zodResolver(insertSurveySchema),
@@ -98,12 +100,17 @@ export function SurveyForm() {
   }, [age, form]);
 
   const onSubmit = async (data: CreateSurveyInput) => {
+    if (!confirmInfoAccuracy || !acceptDataPrivacy) {
+      toast({
+        title: "Error",
+        description: "Please confirm both agreements to proceed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await createSurvey.mutateAsync(data);
-
-      // Save to localStorage
-      const recentSurveys = JSON.parse(localStorage.getItem("recent_surveys") || "[]");
-      localStorage.setItem("recent_surveys", JSON.stringify([data, ...recentSurveys].slice(0, 10)));
 
       setIsSuccess(true);
       toast({
@@ -189,7 +196,7 @@ export function SurveyForm() {
                           required
                           minLength={2}
                           maxLength={50}
-                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' \-]+"
                           title="First name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
                           onBlur={(e: any) => {
                             const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
@@ -218,7 +225,7 @@ export function SurveyForm() {
                           required
                           minLength={2}
                           maxLength={50}
-                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' \-]+"
                           title="Last name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
                           onBlur={(e: any) => {
                             const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
@@ -247,7 +254,7 @@ export function SurveyForm() {
                           required
                           minLength={2}
                           maxLength={50}
-                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                          pattern="[A-Za-zÀ-ÖØ-öø-ÿ' \-]+"
                           title="Middle name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
                           onBlur={(e: any) => {
                             const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
@@ -804,10 +811,128 @@ export function SurveyForm() {
               )}
             </div>
 
+            <div className="w-full h-px bg-slate-100" />
+
+            {/* Confirmation Section */}
+            <div className="space-y-5 bg-gradient-to-br from-red-50/50 to-orange-50/30 rounded-xl p-6 border border-red-100">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center text-sm font-bold">4</span>
+                  <h3 className="text-lg font-semibold text-slate-800">Confirmation & Consent</h3>
+                </div>
+                <p className="text-sm text-slate-600 ml-10">Please confirm both statements before submitting your survey response</p>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className={`flex gap-4 rounded-lg border-2 p-4 transition-all duration-300 ${
+                    confirmInfoAccuracy
+                      ? "border-green-300 bg-green-50/50"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <Checkbox
+                    id="confirm-accuracy"
+                    checked={confirmInfoAccuracy}
+                    onCheckedChange={(checked) => setConfirmInfoAccuracy(checked === true)}
+                    className="data-[state=checked]:bg-green-600 border-slate-300 mt-1 flex-shrink-0"
+                  />
+                  <div className="flex-1 space-y-1.5">
+                    <label htmlFor="confirm-accuracy" className="text-sm font-semibold text-slate-900 cursor-pointer block">
+                      I confirm information accuracy
+                    </label>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      I confirm that all the information I provided in this survey is accurate and true to the best of my knowledge.
+                    </p>
+                  </div>
+                  {confirmInfoAccuracy && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      className="flex-shrink-0 pt-1"
+                    >
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    </motion.div>
+                  )}
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className={`flex gap-4 rounded-lg border-2 p-4 transition-all duration-300 ${
+                    acceptDataPrivacy
+                      ? "border-blue-300 bg-blue-50/50"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <Checkbox
+                    id="accept-privacy"
+                    checked={acceptDataPrivacy}
+                    onCheckedChange={(checked) => setAcceptDataPrivacy(checked === true)}
+                    className="data-[state=checked]:bg-blue-600 border-slate-300 mt-1 flex-shrink-0"
+                  />
+                  <div className="flex-1 space-y-1.5">
+                    <label htmlFor="accept-privacy" className="text-sm font-semibold text-slate-900 cursor-pointer flex items-center gap-2">
+                      <Shield className="w-4 h-4" />
+                      I accept Data Privacy Act of 2012
+                    </label>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      I acknowledge that my personal data will be processed in accordance with the{" "}
+                      <a
+                        href="https://www.officialgazette.gov.ph/2012/08/15/republic-act-no-10173/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
+                      >
+                        RA 10173
+                      </a>
+                      {" "}and consent to the collection and use of my information for youth development planning and survey purposes.
+                    </p>
+                  </div>
+                  {acceptDataPrivacy && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      className="flex-shrink-0 pt-1"
+                    >
+                      <CheckCircle className="w-5 h-5 text-blue-600" />
+                    </motion.div>
+                  )}
+                </motion.div>
+              </div>
+
+              {!confirmInfoAccuracy && !acceptDataPrivacy && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-xs text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-100"
+                >
+                  Please confirm both statements to proceed with your submission.
+                </motion.div>
+              )}
+
+              {confirmInfoAccuracy && acceptDataPrivacy && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-xs text-green-700 font-medium bg-green-50 p-3 rounded-lg border border-green-200 flex items-center gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  All confirmations complete! You're ready to submit.
+                </motion.div>
+              )}
+            </div>
+
             <Button
               type="submit"
               className="w-full h-12 text-lg font-semibold rounded-xl bg-gradient-to-r from-primary to-indigo-700 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={createSurvey.isPending || !!birthdateError}
+              disabled={createSurvey.isPending || !!birthdateError || !confirmInfoAccuracy || !acceptDataPrivacy}
             >
               {createSurvey.isPending ? (
                 <>
