@@ -880,9 +880,6 @@ export async function exportCardAsPDF(
     },
   });
 
-  // Get actual dimensions of the element
-  const rect = targetElement.getBoundingClientRect();
-
   // Card dimensions in pixels (from the element)
   const cardWidth = 350; // Width in px from the design
   const cardHeight = 220; // Height in px from the design
