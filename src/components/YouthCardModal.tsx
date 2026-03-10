@@ -171,6 +171,30 @@ function buildDisplayName(survey: Survey): string {
   return `${survey.firstName}${middleInitial} ${survey.lastName}${suffix}`;
 }
 
+function normalizeCardValue(value?: string): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : "Not provided";
+}
+
+function getSingleLineFitStyle(
+  value: string,
+  baseFontSize: number,
+  minFontSize: number,
+  fitCharacters: number,
+): React.CSSProperties {
+  const safeFitCharacters = Math.max(1, fitCharacters);
+  const ratio = value.length > safeFitCharacters ? safeFitCharacters / value.length : 1;
+  const computedFontSize = Math.max(minFontSize, Number((baseFontSize * ratio).toFixed(2)));
+
+  return {
+    fontSize: `${computedFontSize}px`,
+    lineHeight: 1.1,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "clip",
+  };
+}
+
 export function YouthCardModal({ survey, open, onOpenChange, variant }: YouthCardModalProps) {
   const config = CARD_CONFIG[variant];
   const Icon = config.icon;
@@ -202,6 +226,10 @@ export function YouthCardModal({ survey, open, onOpenChange, variant }: YouthCar
       : survey.location || "Not provided";
   const formattedYouthContactNumber = formatPhilippineMobileNumber(survey.contactNumber);
   const formattedEmergencyContactNumber = formatPhilippineMobileNumber(emergencyContactNumber);
+  const emergencyContactNameValue = normalizeCardValue(emergencyContactName);
+  const birthdateValue = formatDate(survey.birthdate);
+  const emailValue = normalizeCardValue(survey.email);
+  const workStatusValue = normalizeCardValue(survey.workStatus);
 
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -377,20 +405,20 @@ export function YouthCardModal({ survey, open, onOpenChange, variant }: YouthCar
                 style={{ background: config.background }}
               >
                 <div
-                  className="absolute inset-0 opacity-30"
+                  className="absolute inset-0 opacity-25"
                   style={{
                     backgroundImage:
-                      "radial-gradient(circle at 15% 20%, rgba(255,255,255,0.35), transparent 28%), radial-gradient(circle at 85% 84%, rgba(255,255,255,0.22), transparent 32%)",
+                      "radial-gradient(circle at 80% 12%, rgba(255,255,255,0.28), transparent 26%), radial-gradient(circle at 20% 78%, rgba(255,255,255,0.18), transparent 30%)",
                   }}
                 />
                 <img
                   src="/favicon.png"
                   alt=""
-                  className="pointer-events-none absolute right-4 top-4 h-24 w-24 opacity-15"
+                  className="pointer-events-none absolute right-5 top-5 h-20 w-20 opacity-10"
                 />
 
                 <div className="relative z-10 flex h-full flex-col">
-                  <header className="flex items-center justify-between border-b border-white/20 bg-black/15 px-4 py-3 backdrop-blur-sm">
+                  <header className="flex items-center justify-between border-b border-white/20 bg-black/22 px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
                         <Icon className="h-4 w-4" />
@@ -476,13 +504,21 @@ export function YouthCardModal({ survey, open, onOpenChange, variant }: YouthCar
                   <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[9px]">
                     <div className="min-w-0 rounded-lg border border-white/25 bg-black/20 p-1.5">
                       <p className={`text-[7px] uppercase tracking-[0.16em] ${config.labelTone}`}>Name</p>
-                      <p className="mt-0.5 truncate text-[10px] font-semibold" title={emergencyContactName || "Not provided"}>
-                        {emergencyContactName || "Not provided"}
+                      <p
+                        className="mt-0.5 font-semibold"
+                        style={getSingleLineFitStyle(emergencyContactNameValue, 10, 6, 18)}
+                        title={emergencyContactNameValue}
+                      >
+                        {emergencyContactNameValue}
                       </p>
                     </div>
                     <div className="min-w-0 rounded-lg border border-white/25 bg-black/20 p-1.5">
                       <p className={`text-[7px] uppercase tracking-[0.16em] ${config.labelTone}`}>Contact Number</p>
-                      <p className="mt-0.5 truncate text-[10px] font-semibold" title={formattedEmergencyContactNumber}>
+                      <p
+                        className="mt-0.5 font-semibold"
+                        style={getSingleLineFitStyle(formattedEmergencyContactNumber, 10, 6, 14)}
+                        title={formattedEmergencyContactNumber}
+                      >
                         {formattedEmergencyContactNumber}
                       </p>
                     </div>
@@ -491,19 +527,43 @@ export function YouthCardModal({ survey, open, onOpenChange, variant }: YouthCar
                   <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[8px]">
                     <div className="min-w-0 rounded-lg border border-white/25 bg-black/20 p-1.5">
                       <p className={`text-[7px] uppercase tracking-[0.16em] ${config.labelTone}`}>Birthdate</p>
-                      <p className="mt-0.5 truncate text-[9px] font-semibold" title={formatDate(survey.birthdate)}>{formatDate(survey.birthdate)}</p>
+                      <p
+                        className="mt-0.5 font-semibold"
+                        style={getSingleLineFitStyle(birthdateValue, 9, 6, 14)}
+                        title={birthdateValue}
+                      >
+                        {birthdateValue}
+                      </p>
                     </div>
                     <div className="min-w-0 rounded-lg border border-white/25 bg-black/20 p-1.5">
                       <p className={`text-[7px] uppercase tracking-[0.16em] ${config.labelTone}`}>Youth Contact</p>
-                      <p className="mt-0.5 truncate text-[9px] font-semibold" title={formattedYouthContactNumber}>{formattedYouthContactNumber}</p>
+                      <p
+                        className="mt-0.5 font-semibold"
+                        style={getSingleLineFitStyle(formattedYouthContactNumber, 9, 5.5, 14)}
+                        title={formattedYouthContactNumber}
+                      >
+                        {formattedYouthContactNumber}
+                      </p>
                     </div>
                     <div className="min-w-0 rounded-lg border border-white/25 bg-black/20 p-1.5">
                       <p className={`text-[7px] uppercase tracking-[0.16em] ${config.labelTone}`}>Email</p>
-                      <p className="mt-0.5 truncate text-[9px] font-semibold" title={survey.email || "Not provided"}>{survey.email || "Not provided"}</p>
+                      <p
+                        className="mt-0.5 font-semibold"
+                        style={getSingleLineFitStyle(emailValue, 9, 5, 24)}
+                        title={emailValue}
+                      >
+                        {emailValue}
+                      </p>
                     </div>
                     <div className="min-w-0 rounded-lg border border-white/25 bg-black/20 p-1.5">
                       <p className={`text-[7px] uppercase tracking-[0.16em] ${config.labelTone}`}>Work Status</p>
-                      <p className="mt-0.5 truncate text-[9px] font-semibold" title={survey.workStatus || "Not provided"}>{survey.workStatus || "Not provided"}</p>
+                      <p
+                        className="mt-0.5 font-semibold"
+                        style={getSingleLineFitStyle(workStatusValue, 9, 5.5, 18)}
+                        title={workStatusValue}
+                      >
+                        {workStatusValue}
+                      </p>
                     </div>
                   </div>
 
