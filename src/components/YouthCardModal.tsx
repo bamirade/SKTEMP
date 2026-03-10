@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { exportCardAsPNG } from "@/utils/exportUtils";
+import { exportCardAsPNG, exportCardAsPDF } from "@/utils/exportUtils";
 import {
   CreditCard,
   Download,
+  FileText,
   Heart,
   Loader2,
-  Printer,
   Upload,
   User,
 } from "lucide-react";
@@ -202,6 +202,7 @@ export function YouthCardModal({ survey, open, onOpenChange, variant }: YouthCar
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactNumber, setEmergencyContactNumber] = useState("");
   const [isSavingPNG, setIsSavingPNG] = useState(false);
+  const [isSavingPDF, setIsSavingPDF] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -273,8 +274,26 @@ export function YouthCardModal({ survey, open, onOpenChange, variant }: YouthCar
     reader.readAsDataURL(file);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleSavePDF = async () => {
+    const namePart = sanitizeFileName(`${survey.firstName} ${survey.lastName}`);
+    const fileName = `${namePart}-${config.fileSuffix}`;
+
+    setIsSavingPDF(true);
+    try {
+      await exportCardAsPDF(config.wrapperId, fileName);
+      toast({
+        title: "Download started",
+        description: "Your card PDF is being prepared.",
+      });
+    } catch {
+      toast({
+        title: "Export failed",
+        description: "The card could not be exported right now.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingPDF(false);
+    }
   };
 
   const handleClearPhoto = () => {
@@ -586,9 +605,9 @@ export function YouthCardModal({ survey, open, onOpenChange, variant }: YouthCar
                 {isSavingPNG ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Save as PNG
               </Button>
-              <Button onClick={handlePrint} className="gap-2" size="lg" variant="outline">
-                <Printer className="h-4 w-4" />
-                Print Card
+              <Button onClick={handleSavePDF} className="gap-2" size="lg" variant="outline" disabled={isSavingPDF}>
+                {isSavingPDF ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                Save as PDF
               </Button>
             </div>
           </section>

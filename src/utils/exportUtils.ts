@@ -832,3 +832,90 @@ export async function exportCardAsPNG(
   // Download
   saveAs(blob, `${fileName}.png`);
 }
+
+/**
+ * Export card element as high-quality PDF
+ * Uses modern-screenshot + jsPDF for superior rendering
+ */
+export async function exportCardAsPDF(
+  elementId: string,
+  fileName: string
+): Promise<void> {
+  const targetElement = document.getElementById(elementId);
+  if (!targetElement) {
+    throw new Error(`Element with ID "${elementId}" not found`);
+  }
+
+  // Wait for images to load
+  const images = Array.from(targetElement.querySelectorAll("img"));
+  await Promise.all(
+    images.map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const onLoad = () => resolve();
+        img.addEventListener("load", onLoad, { once: true });
+        img.addEventListener("error", onLoad, { once: true });
+        setTimeout(resolve, 5000);
+      });
+    })
+  );
+
+  // Wait for fonts
+  if (document.fonts) {
+    await document.fonts.ready;
+  }
+
+  // Allow layout to stabilize
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  // Import modern-screenshot
+  const { domToPng } = await import("modern-screenshot");
+
+  // Generate high-resolution PNG data URL
+  const dataUrl = await domToPng(targetElement, {
+    scale: 3, // 3x for PDF quality
+    backgroundColor: "#ffffff",
+    filter: (node: Element) => {
+      return !node.classList?.contains("no-print");
+    },
+  });
+
+  // Get actual dimensions of the element
+  const rect = targetElement.getBoundingClientRect();
+
+  // Card dimensions in pixels (from the element)
+  const cardWidth = 350; // Width in px from the design
+  const cardHeight = 220; // Height in px from the design
+  const gap = 24; // Gap between cards in px (6 * 4px from Tailwind)
+
+  // Calculate total height (2 cards + gap)
+  const totalHeight = (cardHeight * 2) + gap;
+
+  // Convert to mm for PDF (assuming 96 DPI)
+  const pxToMm = 0.264583; // 1px = 0.264583mm at 96 DPI
+  const pdfWidth = cardWidth * pxToMm;
+  const pdfHeight = totalHeight * pxToMm;
+
+  // Create PDF with custom size matching the cards
+  const pdf = new jsPDF({
+    orientation: pdfWidth > pdfHeight ? "landscape" : "portrait",
+    unit: "mm",
+    format: [pdfWidth, pdfHeight],
+    compress: true,
+  });
+
+  // Add the image to PDF
+  pdf.addImage(
+    dataUrl,
+    "PNG",
+    0,
+    0,
+    pdfWidth,
+    pdfHeight,
+    undefined,
+    "FAST"
+  );
+
+  // Save PDF
+  pdf.save(`${fileName}.pdf`);
+}
