@@ -1,14 +1,16 @@
 import { z } from "zod";
 
-export const SEX_OPTIONS = ["Male", "Female"] as const;
-export const CIVIL_STATUS_OPTIONS = ["Single", "Married", "Widowed", "Divorced", "Separated", "Annulled", "Unknown", "Live in"] as const;
-export const EDUCATION_OPTIONS = ["Elementary Level", "Elementary Graduate", "High School Level", "High School Graduate", "Vocational Graduate", "College Level", "College Graduate", "Masters Level", "Masters Graduate", "Doctorate Level", "Doctorate Graduate"] as const;
-export const YOUTH_CLASSIFICATION_OPTIONS = ["In School Youth", "Out of School Youth", "Working Youth", "Youth with Special Needs"] as const;
-export const SPECIAL_NEEDS_TYPE_OPTIONS = ["Person with Disability", "Children in Conflict with Law", "Indigenous People"] as const;
-export const WORK_STATUS_OPTIONS = ["Student", "Employed", "Unemployed", "Self-employed", "Currently Looking for a Job", "Not interested in looking for a Job"] as const;
-export const KK_ASSEMBLY_FREQUENCY_OPTIONS = ["1-2 times", "3-4 times", "5 and above"] as const;
-export const KK_ASSEMBLY_REASON_NO_OPTIONS = ["There was no KK Assembly Meeting", "Not interested to attend"] as const;
-export const LOCATION_OPTIONS = ["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7", "Others (Outside Rizal)"] as const;
+export {
+  SEX_OPTIONS,
+  CIVIL_STATUS_OPTIONS,
+  EDUCATION_OPTIONS,
+  YOUTH_CLASSIFICATION_OPTIONS,
+  SPECIAL_NEEDS_TYPE_OPTIONS,
+  WORK_STATUS_OPTIONS,
+  KK_ASSEMBLY_FREQUENCY_OPTIONS,
+  KK_ASSEMBLY_REASON_NO_OPTIONS,
+  LOCATION_OPTIONS,
+} from "@/constants/surveyOptions";
 
 export const insertSurveySchema = z.object({
   id: z.number().optional(),

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [
+    "/favicon.png",
+    "/*.css",
+    "/*.js",
+    "/*.json"
+  ],
+  "rules": [
+    {
+      "type": "rewrite",
+      "pattern": "/*",
+      "destination": "/index.html"
+    }
+  ]
+}
