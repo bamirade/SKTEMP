@@ -1,3 +1,10 @@
+/**
+ * Survey Table Component - REFACTORED
+ * Displays survey data in an interactive table with filtering, sorting, and export capabilities
+ * Extracted common logic into reusable sub-components
+ */
+
+import { useState, useMemo } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -7,130 +14,107 @@ import {
   flexRender,
   type SortingState,
   type ColumnFiltersState,
-  type Column
 } from "@tanstack/react-table";
-import { useState, useMemo } from "react";
+import { Search } from "lucide-react";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import type { Survey } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Table utilities and components
+import { DEFAULT_VISIBLE_COLUMNS } from "@/utils/tableUtils";
+import { FilterDropdown } from "./table/FilterDropdown";
+import { TablePagination } from "./table/TablePagination";
+import { TableRowActions } from "./table/TableRowActions";
+import { TableToolbar } from "./table/TableToolbar";
+
+// Modals
 import { IdCardModal } from "./IdCardModal";
 import { HealthcardModal } from "./HealthcardModal";
 import { EditSurveyModal } from "./EditSurveyModal";
-import type { Survey } from "@shared/schema";
-import {
-  CIVIL_STATUS_OPTIONS,
-  SEX_OPTIONS,
-  WORK_STATUS_OPTIONS,
-  YOUTH_CLASSIFICATION_OPTIONS,
-  KK_ASSEMBLY_FREQUENCY_OPTIONS,
-  KK_ASSEMBLY_REASON_NO_OPTIONS
-} from "@shared/schema";
-import { Search, SlidersHorizontal, CreditCard, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Trash2, Edit3, Heart } from "lucide-react";
+
+// Hooks and utilities
 import { useDeleteSurvey } from "@/hooks/use-surveys";
 import { useToast } from "@/hooks/use-toast";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { saveAs } from 'file-saver';
-
-function FilterDropdown({ column }: { column: Column<any, unknown> }) {
-  const columnFilterValue = column.getFilterValue();
-  const { id } = column;
-
-  const options = useMemo(() => {
-    switch (id) {
-      case "sex": return SEX_OPTIONS;
-      case "civilStatus": return CIVIL_STATUS_OPTIONS;
-      case "youthAgeGroup": return ["Child Youth", "Core Youth", "Young Adult"];
-      case "workStatus": return WORK_STATUS_OPTIONS;
-      case "youthClassification": return YOUTH_CLASSIFICATION_OPTIONS;
-      case "attendedKkAssembly": return ["Yes", "No"];
-      case "kkAssemblyFrequency": return KK_ASSEMBLY_FREQUENCY_OPTIONS;
-      case "kkAssemblyReasonNo": return KK_ASSEMBLY_REASON_NO_OPTIONS;
-      default: return [];
-    }
-  }, [id]);
-
-  if (options.length === 0) return null;
-
-  const getDisplayValue = () => {
-    if (columnFilterValue === undefined) return "all";
-    if (id === "attendedKkAssembly") {
-      return columnFilterValue === true ? "Yes" : columnFilterValue === false ? "No" : "all";
-    }
-    return (columnFilterValue as string) ?? "all";
-  };
-
-  return (
-    <Select
-      value={getDisplayValue()}
-      onValueChange={(value) => {
-        if (value === "all") {
-          column.setFilterValue(undefined);
-        } else if (id === "attendedKkAssembly") {
-          column.setFilterValue(value === "Yes");
-        } else {
-          column.setFilterValue(value);
-        }
-      }}
-    >
-      <SelectTrigger className="h-7 w-full text-[10px] px-2 bg-white/50 border-slate-200">
-        <SelectValue placeholder="All" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All</SelectItem>
-        {options.map((option) => (
-          <SelectItem key={option} value={option}>
-            {option}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
+import { exportToExcel, exportToPDF } from "@/utils/exportUtils";
 
 interface SurveyTableProps {
   data: Survey[];
+  onDelete?: (id: number) => Promise<void>;
+  onRefresh?: () => Promise<void>;
 }
 
-export function SurveyTable({ data }: SurveyTableProps) {
+export function SurveyTable({ data, onDelete, onRefresh }: SurveyTableProps) {
+  // State management
   const [sorting, setSorting] = useState<SortingState>([]);
-  // Define sortable columns and labels
-  const sortableColumns = [
-    { id: 'name', label: 'Name' },
-    { id: 'age', label: 'Age' },
-    { id: 'youthAgeGroup', label: 'Age Group' },
-    { id: 'sex', label: 'Sex' },
-    { id: 'civilStatus', label: 'Status' },
-    { id: 'workStatus', label: 'Work' },
-    { id: 'youthClassification', label: 'Classification' },
-  ];
-  const currentSort = sorting[0] || { id: '', desc: false };
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
+    Object.fromEntries(
+      [
+        "name",
+        "firstName",
+        "lastName",
+        "age",
+        "youthAgeGroup",
+        "sex",
+        "civilStatus",
+        "workStatus",
+        "youthClassification",
+        "educationalBackground",
+        "specialNeedsType",
+        "registeredSkVoter",
+        "registeredNationalVoter",
+        "votedLastElection",
+        "attendedKkAssembly",
+        "kkAssemblyFrequency",
+        "kkAssemblyReasonNo",
+        "location",
+        "actions",
+      ].map((col) => [col, DEFAULT_VISIBLE_COLUMNS.has(col)])
+    )
+  );
+
+  // Modal state
   const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
   const [isIdModalOpen, setIsIdModalOpen] = useState(false);
   const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
   const [editSurvey, setEditSurvey] = useState<Survey | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // Export state
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Hooks
   const deleteSurvey = useDeleteSurvey();
   const { toast } = useToast();
 
-  const table = useReactTable({
-    data,
-    columns: [
+  // Define table columns
+  const columns = useMemo(
+    () => [
       {
-        accessorKey: "name",
-        header: "Name",
-        cell: ({ row }) => <div className="font-medium">{row.getValue("name")}</div>,
+        id: "name",
+        accessorFn: (row: Survey) => `${row.firstName} ${row.lastName}`,
+        header: "Full Name",
+        filterFn: (row: any, _id: string, value: string) => {
+          if (!value) return true;
+          const name = `${row.original.firstName} ${row.original.lastName}`.toLowerCase();
+          return name.includes(value.toLowerCase());
+        },
+      },
+      {
+        accessorKey: "firstName",
+        header: "First Name",
+        enableHiding: true,
+      },
+      {
+        accessorKey: "lastName",
+        header: "Last Name",
+        enableHiding: true,
       },
       {
         accessorKey: "age",
         header: "Age",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: number) => {
           if (!value) return true;
           return row.getValue(id) === value;
         },
@@ -138,7 +122,7 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "youthAgeGroup",
         header: "Age Group",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: string) => {
           if (value === undefined) return true;
           return String(row.getValue(id)) === String(value);
         },
@@ -146,7 +130,7 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "sex",
         header: "Sex",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: string) => {
           if (value === undefined) return true;
           return String(row.getValue(id)) === String(value);
         },
@@ -154,7 +138,7 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "civilStatus",
         header: "Status",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: string) => {
           if (value === undefined) return true;
           return String(row.getValue(id)) === String(value);
         },
@@ -162,7 +146,7 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "workStatus",
         header: "Work",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: string) => {
           if (value === undefined) return true;
           return String(row.getValue(id)) === String(value);
         },
@@ -170,7 +154,7 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "youthClassification",
         header: "Classification",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: string) => {
           if (value === undefined) return true;
           return String(row.getValue(id)) === String(value);
         },
@@ -178,11 +162,11 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "attendedKkAssembly",
         header: "KK Assembly",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: boolean) => {
           if (value === undefined) return true;
           return row.getValue(id) === value;
         },
-        cell: ({ row }) => {
+        cell: ({ row }: any) => {
           const attended = row.getValue("attendedKkAssembly");
           return (
             <div className={`text-sm font-medium ${attended ? "text-green-600" : "text-red-600"}`}>
@@ -194,11 +178,11 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "kkAssemblyFrequency",
         header: "Frequency",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: string) => {
           if (value === undefined) return true;
           return String(row.getValue(id)) === String(value);
         },
-        cell: ({ row }) => {
+        cell: ({ row }: any) => {
           const attended = row.original.attendedKkAssembly;
           const frequency = row.getValue("kkAssemblyFrequency");
           return attended ? <div className="text-sm">{String(frequency)}</div> : <div className="text-sm text-slate-400">-</div>;
@@ -207,289 +191,205 @@ export function SurveyTable({ data }: SurveyTableProps) {
       {
         accessorKey: "kkAssemblyReasonNo",
         header: "Reason (if No)",
-        filterFn: (row, id, value) => {
+        filterFn: (row: any, id: string, value: string) => {
           if (value === undefined) return true;
           return String(row.getValue(id)) === String(value);
         },
-        cell: ({ row }) => {
+        cell: ({ row }: any) => {
           const attended = row.original.attendedKkAssembly;
           const reason = row.getValue("kkAssemblyReasonNo");
           return !attended ? <div className="text-sm">{String(reason)}</div> : <div className="text-sm text-slate-400">-</div>;
         },
       },
       {
+        accessorKey: "educationalBackground",
+        header: "Education",
+        filterFn: (row: any, id: string, value: string) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
+      },
+      {
+        accessorKey: "specialNeedsType",
+        header: "Special Needs",
+        filterFn: (row: any, id: string, value: string) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
+        cell: ({ row }: any) => {
+          const classification = row.original.youthClassification;
+          const specialNeeds = row.getValue("specialNeedsType");
+          return classification === "Youth with Special Needs" ? (
+            <div className="text-sm">{String(specialNeeds)}</div>
+          ) : (
+            <div className="text-sm text-slate-400">-</div>
+          );
+        },
+      },
+      {
+        accessorKey: "registeredSkVoter",
+        header: "SK Voter",
+        filterFn: (row: any, id: string, value: boolean) => {
+          if (value === undefined) return true;
+          return row.getValue(id) === value;
+        },
+        cell: ({ row }: any) => {
+          const registered = row.getValue("registeredSkVoter");
+          return (
+            <div className={`text-sm font-medium ${registered ? "text-green-600" : "text-slate-500"}`}>
+              {registered ? "Yes" : "No"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "registeredNationalVoter",
+        header: "National Voter",
+        filterFn: (row: any, id: string, value: boolean) => {
+          if (value === undefined) return true;
+          return row.getValue(id) === value;
+        },
+        cell: ({ row }: any) => {
+          const registered = row.getValue("registeredNationalVoter");
+          return (
+            <div className={`text-sm font-medium ${registered ? "text-green-600" : "text-slate-500"}`}>
+              {registered ? "Yes" : "No"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "votedLastElection",
+        header: "Voted Last Election",
+        filterFn: (row: any, id: string, value: boolean) => {
+          if (value === undefined) return true;
+          return row.getValue(id) === value;
+        },
+        cell: ({ row }: any) => {
+          const voted = row.getValue("votedLastElection");
+          return (
+            <div className={`text-sm font-medium ${voted ? "text-green-600" : "text-slate-500"}`}>
+              {voted ? "Yes" : "No"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "location",
+        header: "Location",
+        filterFn: (row: any, id: string, value: string) => {
+          if (value === undefined) return true;
+          return String(row.getValue(id)) === String(value);
+        },
+      },
+      {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) => {
-          const survey = row.original;
-          return (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => {
-                  setSelectedSurvey(survey);
-                  setIsIdModalOpen(true);
-                }}
-              >
-                <CreditCard className="h-4 w-4 text-indigo-600" />
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => {
-                  setSelectedSurvey(survey);
-                  setIsHealthModalOpen(true);
-                }}
-              >
-                <Heart className="h-4 w-4 text-red-600" />
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => {
-                  setEditSurvey(survey);
-                  setIsEditModalOpen(true);
-                }}
-              >
-                <Edit3 className="h-4 w-4 text-slate-700" />
-              </Button>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 border-slate-200">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Record</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete the record for {survey.name}? This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => handleDelete(survey.id)}>
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          )
-        }
-      }
+        cell: ({ row }: any) => (
+          <TableRowActions
+            survey={row.original}
+            onDelete={onDelete || deleteSurvey.mutateAsync}
+            onEdit={(survey) => {
+              setEditSurvey(survey);
+              setIsEditModalOpen(true);
+            }}
+            onViewIdCard={(survey) => {
+              setSelectedSurvey(survey);
+              setIsIdModalOpen(true);
+            }}
+            onViewHealthCard={(survey) => {
+              setSelectedSurvey(survey);
+              setIsHealthModalOpen(true);
+            }}
+          />
+        ),
+      },
     ],
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    [onDelete, deleteSurvey]
+  );
+
+  // Initialize table
+  const table = useReactTable({
+    data,
+    columns,
     state: {
       sorting,
       columnFilters,
+      columnVisibility,
     },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   });
 
-  const filteredData = table.getFilteredRowModel().rows.map(row => row.original);
+  // Calculate active filters count
+  const activeFiltersCount = columnFilters.length;
 
-  const handleExportExcel = () => {
-    const filterInfo = columnFilters.length > 0
-      ? columnFilters.map(f => `${f.id}: ${Array.isArray(f.value) ? f.value.join(', ') : f.value}`).join(' | ')
-      : 'No filters applied';
-
-    // Compute overview statistics from filteredData
-    const sexCounts = filteredData.reduce((acc: Record<string, number>, s) => {
-      acc[s.sex] = (acc[s.sex] || 0) + 1;
-      return acc;
-    }, {});
-
-    const sexInfo = Object.entries(sexCounts).map(([k, v]) => `${k}: ${v}`).join(' | ') || 'None';
-
-    const attendedCount = filteredData.filter(s => s.attendedKkAssembly === true).length;
-    const notAttendedCount = filteredData.filter(s => s.attendedKkAssembly === false).length;
-    const kkInfo = `Attended: ${attendedCount} | Did Not Attend: ${notAttendedCount}`;
-
-    const freqCounts = filteredData.reduce((acc: Record<string, number>, s) => {
-      const f = s.kkAssemblyFrequency || '-';
-      acc[f] = (acc[f] || 0) + 1;
-      return acc;
-    }, {});
-    const freqInfo = Object.entries(freqCounts).map(([k, v]) => `${k}: ${v}`).join(' | ');
-
-    const rows = filteredData.map(s => [
-      s.name,
-      s.age,
-      s.sex,
-      s.civilStatus,
-      s.workStatus,
-      s.youthClassification,
-      s.attendedKkAssembly ? 'Yes' : 'No',
-      s.attendedKkAssembly ? (s.kkAssemblyFrequency || '-') : '-',
-      !s.attendedKkAssembly ? (s.kkAssemblyReasonNo || '-') : '-'
-    ]);
-
-    // Build sheet with filter + stats header, then data starting below
-    const wsWithFilter = XLSX.utils.aoa_to_sheet([
-      ['Export Filters:', filterInfo],
-      ['Total Records:', filteredData.length],
-      ['Export Date:', new Date().toLocaleString()],
-      [],
-      ['Sex Distribution:', sexInfo],
-      ['KK Assembly:', kkInfo],
-      ['KK Frequency Breakdown:', freqInfo],
-      [],
-      ['Name', 'Age', 'Sex', 'Status', 'Work', 'Classification', 'KK Assembly', 'Frequency', 'Reason (if No)']
-    ]);
-
-    XLSX.utils.sheet_add_aoa(wsWithFilter, rows, { origin: 'A10' });
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsWithFilter, "Surveys");
-    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const dataBlob = new Blob([excelBuffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'});
-    saveAs(dataBlob, 'youth_surveys_filtered.xlsx');
+  // Helper functions
+  const clearAllFilters = () => {
+    setColumnFilters([]);
   };
 
-  const handleExportPDF = () => {
-    const filterInfo = columnFilters.length > 0
-      ? columnFilters.map(f => `${f.id}: ${Array.isArray(f.value) ? f.value.join(', ') : f.value}`).join(' | ')
-      : 'No filters applied';
-
-    // Compute overview statistics
-    const sexCounts = filteredData.reduce((acc: Record<string, number>, s) => {
-      acc[s.sex] = (acc[s.sex] || 0) + 1;
-      return acc;
-    }, {});
-    const sexInfo = Object.entries(sexCounts).map(([k, v]) => `${k}: ${v}`).join(' | ') || 'None';
-
-    const attendedCount = filteredData.filter(s => s.attendedKkAssembly === true).length;
-    const notAttendedCount = filteredData.filter(s => s.attendedKkAssembly === false).length;
-    const kkInfo = `Attended: ${attendedCount} | Did Not Attend: ${notAttendedCount}`;
-
-    const freqCounts = filteredData.reduce((acc: Record<string, number>, s) => {
-      const f = s.kkAssemblyFrequency || '-';
-      acc[f] = (acc[f] || 0) + 1;
-      return acc;
-    }, {});
-    const freqInfo = Object.entries(freqCounts).map(([k, v]) => `${k}: ${v}`).join(' | ');
-
-    const doc = new jsPDF();
-
-    // Add title and filter/stat information
-    doc.setFontSize(14);
-    const title = columnFilters.length > 0 ? "Youth Survey Report (Filtered)" : "Youth Survey Report";
-    doc.text(title, 14, 15);
-
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Filters Applied: ${filterInfo}`, 14, 25);
-    doc.text(`Total Records: ${filteredData.length} | Export Date: ${new Date().toLocaleString()}`, 14, 32);
-    doc.text(`Sex Distribution: ${sexInfo}`, 14, 39);
-    doc.text(`KK Assembly: ${kkInfo}`, 14, 46);
-    doc.text(`KK Frequency Breakdown: ${freqInfo}`, 14, 53);
-    doc.setTextColor(0);
-
-    autoTable(doc, {
-      head: [['Name', 'Age', 'Sex', 'Classification', 'Work Status', 'KK Assembly', 'Frequency/Reason']],
-      body: filteredData.map(s => [
-        s.name,
-        s.age,
-        s.sex,
-        s.youthClassification,
-        s.workStatus,
-        s.attendedKkAssembly ? 'Yes' : 'No',
-        s.attendedKkAssembly ? (s.kkAssemblyFrequency || '-') : (s.kkAssemblyReasonNo || '-')
-      ]),
-      startY: 62,
-    });
-
-    doc.save('youth_surveys_filtered.pdf');
-  };
-
-  const handleDelete = async (id: number) => {
+  const handleExportExcel = async () => {
+    setIsExporting(true);
     try {
-      await deleteSurvey.mutateAsync(id);
-      toast({ title: "Deleted", description: "Survey record deleted successfully." });
-    } catch (err) {
-      toast({ title: "Error", description: "Failed to delete record.", variant: "destructive" });
+      // Use getSortedRowModel to get both filtered AND sorted data
+      const sortedFilteredData = table.getSortedRowModel().rows.map((row) => row.original);
+      await exportToExcel(sortedFilteredData, columnVisibility);
+      toast({
+        title: "Success",
+        description: "Excel file exported successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export Excel file.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
     }
   };
 
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      // Use getSortedRowModel to get both filtered AND sorted data
+      const sortedFilteredData = table.getSortedRowModel().rows.map((row) => row.original);
+      await exportToPDF(sortedFilteredData, columnFilters, columnVisibility);
+      toast({
+        title: "Success",
+        description: "PDF file exported successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export PDF file.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-4 rounded-xl border shadow-sm">
-        <div className="flex gap-2 w-full sm:w-auto items-center">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search names..."
-              value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-              onChange={(event) =>
-                table.getColumn("name")?.setFilterValue(event.target.value)
-              }
-              className="pl-9 h-10"
-            />
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-10 gap-2">
-                <SlidersHorizontal className="h-4 w-4" /> Filter
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {table.getAllColumns()
-                .filter((column) => column.getCanHide())
-                .map((column) => {
-                  return (
-                    <DropdownMenuCheckboxItem
-                      key={column.id}
-                      className="capitalize"
-                      checked={column.getIsVisible()}
-                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                    >
-                      {column.id}
-                    </DropdownMenuCheckboxItem>
-                  )
-                })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {/* Sort Dropdown */}
-          <Select
-            value={currentSort.id ? `${currentSort.id}:${currentSort.desc ? 'desc' : 'asc'}` : 'none'}
-            onValueChange={val => {
-              if (val === 'none') return setSorting([]);
-              const [id, dir] = val.split(":");
-              setSorting([{ id, desc: dir === 'desc' }]);
-            }}
-          >
-            <SelectTrigger className="h-10 w-44 text-[14px] ml-2">
-              <SelectValue placeholder="Sort by..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No Sort</SelectItem>
-              {sortableColumns.map(col => [
-                <SelectItem key={col.id+':asc'} value={`${col.id}:asc`}>{col.label} (Ascending)</SelectItem>,
-                <SelectItem key={col.id+':desc'} value={`${col.id}:desc`}>{col.label} (Descending)</SelectItem>
-              ])}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex gap-2 w-full sm:w-auto justify-end">
-          <Button variant="outline" onClick={handleExportExcel} className="h-10">Export Excel</Button>
-          <Button variant="outline" onClick={handleExportPDF} className="h-10">Export PDF</Button>
-        </div>
-      </div>
+      <TableToolbar
+        table={table}
+        sorting={sorting}
+        onSortingChange={setSorting}
+        activeFiltersCount={activeFiltersCount}
+        onClearFilters={clearAllFilters}
+        onExportExcel={handleExportExcel}
+        onExportPDF={handleExportPDF}
+        isExporting={isExporting}
+        hasData={data.length > 0}
+      />
 
       {/* Table */}
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
@@ -503,10 +403,7 @@ export function SurveyTable({ data }: SurveyTableProps) {
                       <div className="flex items-center gap-1">
                         {header.isPlaceholder
                           ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
+                          : flexRender(header.column.columnDef.header, header.getContext())}
                       </div>
                       {header.column.getCanFilter() ? (
                         <div className="font-normal">
@@ -563,8 +460,14 @@ export function SurveyTable({ data }: SurveyTableProps) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center">
-                  No results.
+                <TableCell colSpan={table.getAllColumns().length} className="h-32 text-center">
+                  <div className="flex flex-col items-center justify-center gap-2 text-slate-500">
+                    <Search className="h-8 w-8 text-slate-300" />
+                    <p className="font-medium">No records found</p>
+                    {activeFiltersCount > 0 && (
+                      <p className="text-sm">Try adjusting or clearing your filters</p>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             )}
@@ -573,64 +476,26 @@ export function SurveyTable({ data }: SurveyTableProps) {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-2">
-        <div className="flex-1 text-sm text-slate-500">
-          Showing {table.getRowModel().rows.length} of {data.length} records
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <ChevronsLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
-          >
-            <ChevronsRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <TablePagination table={table} />
 
-      <IdCardModal
-        survey={selectedSurvey}
-        open={isIdModalOpen}
-        onOpenChange={setIsIdModalOpen}
-      />
-      <HealthcardModal
-        survey={selectedSurvey}
-        open={isHealthModalOpen}
-        onOpenChange={setIsHealthModalOpen}
-      />
-      <EditSurveyModal
-        survey={editSurvey}
-        open={isEditModalOpen}
-        onOpenChange={setIsEditModalOpen}
-        onUpdated={() => {
-          setIsEditModalOpen(false);
-        }}
-      />
+      {/* Modals */}
+      <TooltipProvider>
+        <IdCardModal survey={selectedSurvey} open={isIdModalOpen} onOpenChange={setIsIdModalOpen} />
+        <HealthcardModal
+          survey={selectedSurvey}
+          open={isHealthModalOpen}
+          onOpenChange={setIsHealthModalOpen}
+        />
+        <EditSurveyModal
+          survey={editSurvey}
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          onUpdated={async () => {
+            setIsEditModalOpen(false);
+            await onRefresh?.();
+          }}
+        />
+      </TooltipProvider>
     </div>
   );
 }

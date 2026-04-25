@@ -76,35 +76,44 @@
 
 /* Print Styles for ID Card */
 @media print {
-  /* Use a printable page box and keep only the card visible */
-  @page { size: A4 landscape; margin: 10mm; }
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
-  /* Make card and its children visible */
-  #id-card-print-area, #id-card-print-area *, #healthcard-print-area, #healthcard-print-area * {
-    visibility: visible;
+
+  .print-card-stack,
+  .print-card-stack * {
+    visibility: visible !important;
   }
-  /* Center the card on the page and preserve its visual styles as much as possible */
-  #id-card-print-area, #healthcard-print-area {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%) scale(1);
+
+  .print-card-stack {
+    position: absolute !important;
+    left: 50% !important;
+    top: 0 !important;
+    transform: translateX(-50%) !important;
+    width: 350px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 12mm !important;
+  }
+
+  .print-card-face {
     width: 350px !important;
     height: 220px !important;
-    display: block !important;
-    margin: 0 !important;
-    background: transparent !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
     box-shadow: none !important;
-    border-radius: 0.5rem !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  /* Ensure inner elements use their usual layout (flex/grid) when printing) */
-  #id-card-print-area > *, #healthcard-print-area > * {
-    display: block !important;
-  }
+
   .no-print {
     display: none !important;
   }

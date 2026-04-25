@@ -3,13 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Survey } from "@shared/schema";
-import { SEX_OPTIONS, CIVIL_STATUS_OPTIONS, WORK_STATUS_OPTIONS, YOUTH_CLASSIFICATION_OPTIONS, EDUCATION_OPTIONS, KK_ASSEMBLY_FREQUENCY_OPTIONS, KK_ASSEMBLY_REASON_NO_OPTIONS } from "@shared/schema";
+import { SEX_OPTIONS, CIVIL_STATUS_OPTIONS, WORK_STATUS_OPTIONS, YOUTH_CLASSIFICATION_OPTIONS, EDUCATION_OPTIONS, KK_ASSEMBLY_FREQUENCY_OPTIONS, KK_ASSEMBLY_REASON_NO_OPTIONS, LOCATION_OPTIONS, SPECIAL_NEEDS_TYPE_OPTIONS } from "@shared/schema";
 import { useUpdateSurvey } from "@/hooks/use-surveys";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface EditSurveyModalProps {
   survey: Survey | null;
@@ -21,16 +23,23 @@ interface EditSurveyModalProps {
 export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditSurveyModalProps) {
   const updateSurvey = useUpdateSurvey();
   const { toast } = useToast();
+  const [birthdateError, setBirthdateError] = useState<string | null>(null);
 
   const form = useForm<Partial<Survey>>({
     mode: "onTouched",
     defaultValues: {
-      name: "",
+      firstName: "",
+      lastName: "",
+      middleName: "",
+      suffix: "",
+      birthdate: "",
+      email: "",
+      contactNumber: "",
       age: undefined,
       sex: "Male",
       civilStatus: "Single",
       youthClassification: "In School Youth",
-      workStatus: "Unemployed",
+      workStatus: "Student",
       educationalBackground: "High School Level",
       youthAgeGroup: "Child Youth",
       registeredSkVoter: false,
@@ -39,18 +48,27 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
       attendedKkAssembly: false,
       kkAssemblyFrequency: undefined,
       kkAssemblyReasonNo: undefined,
+      location: "Purok 1",
+      otherLocation: "",
+      specialNeedsType: "",
     }
   });
 
   useEffect(() => {
     if (survey) {
       form.reset({
-        name: survey.name ?? "",
+        firstName: survey.firstName ?? "",
+        lastName: survey.lastName ?? "",
+        middleName: survey.middleName ?? "",
+        suffix: survey.suffix ?? "",
+        birthdate: survey.birthdate ?? "",
+        email: survey.email ?? "",
+        contactNumber: survey.contactNumber ?? "",
         age: survey.age ?? undefined,
         sex: survey.sex ?? "Male",
         civilStatus: survey.civilStatus ?? "Single",
         youthClassification: survey.youthClassification ?? "In School Youth",
-        workStatus: survey.workStatus ?? "Unemployed",
+        workStatus: survey.workStatus ?? "Student",
         educationalBackground: survey.educationalBackground ?? "High School Level",
         youthAgeGroup: survey.youthAgeGroup ?? "Child Youth",
         registeredSkVoter: survey.registeredSkVoter ?? false,
@@ -59,9 +77,46 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
         attendedKkAssembly: survey.attendedKkAssembly ?? false,
         kkAssemblyFrequency: survey.kkAssemblyFrequency ?? undefined,
         kkAssemblyReasonNo: survey.kkAssemblyReasonNo ?? undefined,
+        location: survey.location ?? "Purok 1",
+        otherLocation: survey.otherLocation ?? "",
+        specialNeedsType: survey.specialNeedsType ?? "",
       });
+      setBirthdateError(null);
     }
-  }, [survey]);
+  }, [survey, form]);
+
+  // Auto-calculate age from birthdate
+  const birthdate = form.watch("birthdate");
+  useEffect(() => {
+    if (birthdate) {
+      const today = new Date();
+      const birthDate = new Date(birthdate);
+      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        calculatedAge--;
+      }
+
+      // Validate age is within range
+      if (calculatedAge >= 14 && calculatedAge <= 30) {
+        form.setValue("age", calculatedAge);
+        setBirthdateError(null);
+      } else if (calculatedAge < 14) {
+        form.setValue("age", undefined);
+        setBirthdateError("You must be at least 14 years old to participate.");
+      } else {
+        form.setValue("age", undefined);
+        setBirthdateError("This survey is for youth aged 14-30 years old.");
+      }
+    } else {
+      form.setValue("age", undefined);
+      setBirthdateError(null);
+    }
+  }, [birthdate, form]);
 
   // auto-calc youth age group (watch only `age` to avoid recursive updates)
   const watchedAge = form.watch("age");
@@ -78,8 +133,8 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
 
   const onSubmit = async (values: Partial<Survey>) => {
     if (!survey) return;
-    if (!values.name || values.name.trim() === "") {
-      toast({ title: "Error", description: "Name cannot be empty.", variant: "destructive" });
+    if (!values.firstName || values.firstName.trim() === "" || !values.lastName || values.lastName.trim() === "") {
+      toast({ title: "Error", description: "First name and last name cannot be empty.", variant: "destructive" });
       return;
     }
 
@@ -96,317 +151,704 @@ export function EditSurveyModal({ survey, open, onOpenChange, onUpdated }: EditS
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Edit Survey</DialogTitle>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="text-2xl font-bold">Edit Survey Record</DialogTitle>
+          <p className="text-sm text-slate-500 mt-1">Update the youth survey information below</p>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-2">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Full Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      required
-                      minLength={2}
-                      maxLength={100}
-                      pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
-                      title="Name should be 2-100 characters; letters, spaces, hyphens and apostrophes only."
-                      onBlur={(e: any) => {
-                        const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
-                        if (v !== e.target.value) e.target.value = v;
-                        field.onChange(v);
-                        field.onBlur?.();
-                      }}
-                      className="h-10 rounded-md"
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto pr-2">
+            <div className="space-y-6 pb-6">
+              {/* Personal Information Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.05 }}
+                className="bg-slate-50 rounded-lg p-4 border border-slate-200"
+              >
+                <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                  <span className="w-1 h-5 bg-blue-500 rounded"></span>
+                  Personal Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="firstName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">
+                          First Name <span className="text-red-500">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            required
+                            minLength={2}
+                            maxLength={50}
+                            pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                            title="First name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
+                            onBlur={(e: any) => {
+                              const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                              if (v !== e.target.value) e.target.value = v;
+                              field.onChange(v);
+                              field.onBlur?.();
+                            }}
+                            className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200 transition-colors"
+                            placeholder="John"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="lastName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">
+                          Last Name <span className="text-red-500">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            required
+                            minLength={2}
+                            maxLength={50}
+                            pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                            title="Last name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
+                            onBlur={(e: any) => {
+                              const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                              if (v !== e.target.value) e.target.value = v;
+                              field.onChange(v);
+                              field.onBlur?.();
+                            }}
+                            className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200 transition-colors"
+                            placeholder="Doe"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="middleName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Middle Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            minLength={2}
+                            maxLength={50}
+                            pattern="[A-Za-zÀ-ÖØ-öø-ÿ' -]+"
+                            title="Middle name should be 2-50 characters; letters, spaces, hyphens and apostrophes only."
+                            onBlur={(e: any) => {
+                              const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                              if (v !== e.target.value) e.target.value = v;
+                              field.onChange(v);
+                              field.onBlur?.();
+                            }}
+                            className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200 transition-colors"
+                            placeholder="Joseph"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="suffix"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Suffix</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="e.g., Jr, Sr, III"
+                            maxLength={20}
+                            title="Suffix should be 0-20 characters."
+                            onBlur={(e: any) => {
+                              const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                              if (v !== e.target.value) e.target.value = v;
+                              field.onChange(v);
+                              field.onBlur?.();
+                            }}
+                            className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200 transition-colors"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </motion.div>
+
+              {/* Contact & Birthdate Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className="bg-slate-50 rounded-lg p-4 border border-slate-200"
+              >
+                <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                  <span className="w-1 h-5 bg-green-500 rounded"></span>
+                  Contact Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="birthdate"
+                    render={({ field }) => {
+                      const today = new Date();
+                      const maxDate = new Date(today.getFullYear() - 14, today.getMonth(), today.getDate());
+                      const minDate = new Date(today.getFullYear() - 30, today.getMonth(), today.getDate());
+                      const maxDateStr = maxDate.toISOString().split('T')[0];
+                      const minDateStr = minDate.toISOString().split('T')[0];
+
+                      return (
+                        <FormItem>
+                          <FormLabel className="font-medium text-slate-700">Birthdate</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              {...field}
+                              min={minDateStr}
+                              max={maxDateStr}
+                              className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200 transition-colors"
+                            />
+                          </FormControl>
+                          {birthdateError && (
+                            <div className="text-sm font-medium text-red-500 mt-1.5 flex items-center gap-1.5">
+                              <AlertCircle className="w-4 h-4" />
+                              {birthdateError}
+                            </div>
+                          )}
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="age"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">
+                          Age <span className="text-slate-500 font-normal">(Auto-calculated)</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            {...field}
+                            value={field.value || ''}
+                            readOnly
+                            className="h-10 rounded-md bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Email Address</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="your@email.com"
+                            {...field}
+                            maxLength={100}
+                            onBlur={(e: any) => {
+                              const v = String(e.target.value || "").trim().toLowerCase();
+                              if (v !== e.target.value) e.target.value = v;
+                              field.onChange(v);
+                              field.onBlur?.();
+                            }}
+                            className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200 transition-colors"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="contactNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Contact Number</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="tel"
+                            placeholder="+63 9XX XXX XXXX"
+                            {...field}
+                            maxLength={20}
+                            onBlur={(e: any) => {
+                              const v = String(e.target.value || "").trim();
+                              if (v !== e.target.value) e.target.value = v;
+                              field.onChange(v);
+                              field.onBlur?.();
+                            }}
+                            className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200 transition-colors"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </motion.div>
+
+              {/* Location & Demographics */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.15 }}
+                className="bg-slate-50 rounded-lg p-4 border border-slate-200"
+              >
+                <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                  <span className="w-1 h-5 bg-purple-500 rounded"></span>
+                  Location & Demographics
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Location/Purok</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                            <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                              <SelectValue placeholder="Select location" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {LOCATION_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="sex"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Sex</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                            <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                              <SelectValue placeholder="Select sex" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SEX_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Conditional otherLocation */}
+                {form.watch("location") === "Others (Outside Rizal)" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-4 pt-4 border-t border-slate-300"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="otherLocation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-medium text-slate-700">Please Specify Your Location</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter your specific location"
+                              {...field}
+                              maxLength={100}
+                              autoFocus
+                              onBlur={(e: any) => {
+                                const v = String(e.target.value || "").replace(/\s+/g, " ").trim();
+                                if (v !== e.target.value) e.target.value = v;
+                                field.onChange(v);
+                                field.onBlur?.();
+                              }}
+                              className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200 transition-colors"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                  </motion.div>
+                )}
+              </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <FormField
-                control={form.control}
-                name="age"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Age</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        {...field}
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        min={14}
-                        max={30}
-                        step={1}
-                        required
-                        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                          if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
-                        }}
-                        onPaste={(e: React.ClipboardEvent<HTMLInputElement>) => {
-                          const paste = e.clipboardData.getData('text');
-                          if (!/^\d+$/.test(paste)) e.preventDefault();
-                        }}
-                        onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-                        onBlur={(e: any) => {
-                          const val = e.target.value;
-                          if (val === "") {
-                            field.onChange(undefined);
-                            field.onBlur?.();
-                            return;
-                          }
-                          let n = Number(val);
-                          if (Number.isNaN(n)) {
-                            field.onChange(undefined);
-                            field.onBlur?.();
-                            return;
-                          }
-                          if (n < 14) n = 14;
-                          if (n > 30) n = 30;
-                          if (String(n) !== val) e.target.value = String(n);
-                          field.onChange(n);
-                          field.onBlur?.();
-                        }}
-                        className="h-10 rounded-md"
+              {/* Education & Status Classification */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.2 }}
+                className="bg-slate-50 rounded-lg p-4 border border-slate-200"
+              >
+                <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                  <span className="w-1 h-5 bg-amber-500 rounded"></span>
+                  Education & Status
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="educationalBackground"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Educational Background</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                            <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                              <SelectValue placeholder="Select education" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {EDUCATION_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="civilStatus"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Civil Status</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                            <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CIVIL_STATUS_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="youthClassification"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Youth Classification</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                            <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                              <SelectValue placeholder="Select classification" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {YOUTH_CLASSIFICATION_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="workStatus"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">Work Status</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                            <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                              <SelectValue placeholder="Select work status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {WORK_STATUS_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="youthAgeGroup"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-slate-700">
+                          Youth Age Group <span className="text-slate-500 font-normal">(Auto-calculated)</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            readOnly
+                            className="h-10 rounded-md bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Conditional Special Needs Type */}
+                {form.watch("youthClassification") === "Youth with Special Needs" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-4 pt-4 border-t border-slate-300"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="specialNeedsType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-medium text-slate-700">Type of Special Needs</FormLabel>
+                          <FormControl>
+                            <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                              <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SPECIAL_NEEDS_TYPE_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
+                    />
+                  </motion.div>
+                )}
+              </motion.div>
+
+              {/* Voter & Participation Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.25 }}
+                className="bg-slate-50 rounded-lg p-4 border border-slate-200"
+              >
+                <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                  <span className="w-1 h-5 bg-indigo-500 rounded"></span>
+                  Voter Status & Participation
+                </h3>
+                <div className="space-y-3">
+                  <FormField
+                    control={form.control}
+                    name="registeredSkVoter"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 rounded-lg border border-slate-200 p-3.5 hover:bg-slate-100 transition-colors cursor-pointer">
+                        <FormControl>
+                          <Checkbox
+                            checked={!!field.value}
+                            onCheckedChange={field.onChange}
+                            className="h-5 w-5 rounded"
+                          />
+                        </FormControl>
+                        <FormLabel className="text-slate-700 font-medium cursor-pointer">Registered SK Voter</FormLabel>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="registeredNationalVoter"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 rounded-lg border border-slate-200 p-3.5 hover:bg-slate-100 transition-colors cursor-pointer">
+                        <FormControl>
+                          <Checkbox
+                            checked={!!field.value}
+                            onCheckedChange={field.onChange}
+                            className="h-5 w-5 rounded"
+                          />
+                        </FormControl>
+                        <FormLabel className="text-slate-700 font-medium cursor-pointer">Registered National Voter</FormLabel>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="votedLastElection"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 rounded-lg border border-slate-200 p-3.5 hover:bg-slate-100 transition-colors cursor-pointer">
+                        <FormControl>
+                          <Checkbox
+                            checked={!!field.value}
+                            onCheckedChange={field.onChange}
+                            className="h-5 w-5 rounded"
+                          />
+                        </FormControl>
+                        <FormLabel className="text-slate-700 font-medium cursor-pointer">Voted in Last Election</FormLabel>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="attendedKkAssembly"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 rounded-lg border border-slate-200 p-3.5 hover:bg-slate-100 transition-colors cursor-pointer">
+                        <FormControl>
+                          <Checkbox
+                            checked={!!field.value}
+                            onCheckedChange={field.onChange}
+                            className="h-5 w-5 rounded"
+                          />
+                        </FormControl>
+                        <FormLabel className="text-slate-700 font-medium cursor-pointer">Attended KK Assembly</FormLabel>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* KK Assembly Follow-up Questions */}
+                  {form.watch("attendedKkAssembly") && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="mt-4 pt-4 border-t border-slate-300"
+                    >
+                      <FormField
+                        control={form.control}
+                        name="kkAssemblyFrequency"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="font-medium text-slate-700">How many times did you attend?</FormLabel>
+                            <FormControl>
+                              <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                                <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                                  <SelectValue placeholder="Select frequency" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {KK_ASSEMBLY_FREQUENCY_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    </motion.div>
+                  )}
 
-              <FormField
-                control={form.control}
-                name="sex"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sex</FormLabel>
-                    <FormControl>
-                      <Select onValueChange={field.onChange} defaultValue={field.value as string}>
-                        <SelectTrigger className="h-10 rounded-md"><SelectValue placeholder="Select sex" /></SelectTrigger>
-                        <SelectContent>
-                          {SEX_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="civilStatus"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <FormControl>
-                      <Select onValueChange={field.onChange} defaultValue={field.value as string}>
-                        <SelectTrigger className="h-10 rounded-md"><SelectValue placeholder="Select status" /></SelectTrigger>
-                        <SelectContent>
-                          {CIVIL_STATUS_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <FormField
-                control={form.control}
-                name="educationalBackground"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Educational Background</FormLabel>
-                    <FormControl>
-                      <Select onValueChange={field.onChange} defaultValue={field.value as string}>
-                        <SelectTrigger className="h-10 rounded-md"><SelectValue placeholder="Select education" /></SelectTrigger>
-                        <SelectContent>
-                          {EDUCATION_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="youthClassification"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Youth Classification</FormLabel>
-                    <FormControl>
-                      <Select onValueChange={field.onChange} defaultValue={field.value as string}>
-                        <SelectTrigger className="h-10 rounded-md"><SelectValue placeholder="Select classification" /></SelectTrigger>
-                        <SelectContent>
-                          {YOUTH_CLASSIFICATION_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="workStatus"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Work Status</FormLabel>
-                    <FormControl>
-                      <Select onValueChange={field.onChange} defaultValue={field.value as string}>
-                        <SelectTrigger className="h-10 rounded-md"><SelectValue placeholder="Select work status" /></SelectTrigger>
-                        <SelectContent>
-                          {WORK_STATUS_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="youthAgeGroup"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Youth Age Group</FormLabel>
-                    <FormControl>
-                      <Input {...field} readOnly className="bg-slate-50 h-10 rounded-md text-slate-500 font-medium" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="w-full h-px bg-slate-100" />
-
-            {/* Voter Status & Participation */}
-            <div className="space-y-4">
-              <FormField
-                control={form.control}
-                name="registeredSkVoter"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-lg border p-4 shadow-sm hover:bg-slate-50 transition-colors">
-                    <FormControl>
-                      <input type="checkbox" checked={!!field.value} onChange={e => field.onChange(e.target.checked)} className="accent-indigo-600 h-5 w-5" />
-                    </FormControl>
-                    <FormLabel>Registered SK Voter</FormLabel>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="registeredNationalVoter"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-lg border p-4 shadow-sm hover:bg-slate-50 transition-colors">
-                    <FormControl>
-                      <input type="checkbox" checked={!!field.value} onChange={e => field.onChange(e.target.checked)} className="accent-indigo-600 h-5 w-5" />
-                    </FormControl>
-                    <FormLabel>Registered National Voter</FormLabel>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="votedLastElection"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-lg border p-4 shadow-sm hover:bg-slate-50 transition-colors">
-                    <FormControl>
-                      <input type="checkbox" checked={!!field.value} onChange={e => field.onChange(e.target.checked)} className="accent-indigo-600 h-5 w-5" />
-                    </FormControl>
-                    <FormLabel>Voted Last Election</FormLabel>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="attendedKkAssembly"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-lg border p-4 shadow-sm hover:bg-slate-50 transition-colors">
-                    <FormControl>
-                      <input type="checkbox" checked={!!field.value} onChange={e => field.onChange(e.target.checked)} className="accent-indigo-600 h-5 w-5" />
-                    </FormControl>
-                    <FormLabel>Attended KK Assembly</FormLabel>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Conditional fields for KK Assembly */}
-              {form.watch("attendedKkAssembly") && (
-                <div className="mt-6 pt-6 border-t border-slate-100">
-                  <FormField
-                    control={form.control}
-                    name="kkAssemblyFrequency"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-base">How many times did you attend?</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value as string}>
-                          <SelectTrigger className="h-10 rounded-md"><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                          <SelectContent>
-                            {KK_ASSEMBLY_FREQUENCY_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {form.watch("attendedKkAssembly") === false && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="mt-4 pt-4 border-t border-slate-300"
+                    >
+                      <FormField
+                        control={form.control}
+                        name="kkAssemblyReasonNo"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="font-medium text-slate-700">Why didn't you attend?</FormLabel>
+                            <FormControl>
+                              <Select onValueChange={field.onChange} defaultValue={field.value as string}>
+                                <SelectTrigger className="h-10 rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-200">
+                                  <SelectValue placeholder="Select reason" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {KK_ASSEMBLY_REASON_NO_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
+                      />
+                    </motion.div>
+                  )}
                 </div>
-              )}
-
-              {form.watch("attendedKkAssembly") === false && (
-                <div className="mt-6 pt-6 border-t border-slate-100">
-                  <FormField
-                    control={form.control}
-                    name="kkAssemblyReasonNo"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-base">Why didn't you attend?</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value as string}>
-                          <SelectTrigger className="h-10 rounded-md"><SelectValue placeholder="Select reason" /></SelectTrigger>
-                          <SelectContent>
-                            {KK_ASSEMBLY_REASON_NO_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" className="bg-primary" disabled={updateSurvey.isPending}>
-                {updateSurvey.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : "Save Changes"}
-              </Button>
+              </motion.div>
             </div>
           </form>
         </Form>
+
+        {/* Footer with Actions */}
+        <div className="flex-shrink-0 flex justify-between items-center gap-3 pt-4 border-t border-slate-200 mt-2">
+          <p className="text-xs text-slate-500">
+            {updateSurvey.isPending ? (
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                Saving your changes...
+              </span>
+            ) : (
+              "Changes are saved to the database"
+            )}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={updateSurvey.isPending}
+              className="h-10 px-4 rounded-md text-slate-700 hover:bg-slate-100"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={() => form.handleSubmit(onSubmit)()}
+              disabled={updateSurvey.isPending}
+              className="h-10 px-6 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium flex items-center gap-2 transition-colors"
+            >
+              {updateSurvey.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
